@@ -1,0 +1,49 @@
+# Keep the build context small and free of secrets and host-specific artifacts. The image installs its
+# own dependencies, builds the frontend and generates the database, so none of these are needed.
+
+# Version control, CI and editors
+.git
+.github
+.gitignore
+.idea
+.vscode
+**/.DS_Store
+**/*.swp
+
+# Secrets and local environment, at any depth (configure the container with environment variables
+# instead). Mirrors .gitignore, so a local build sees the same files as CI and Render, and a local
+# frontend/.env.local can never be inlined into the production bundle by Vite.
+**/.env
+**/.env.*
+
+# Python environments and caches
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/.coverage
+**/htmlcov
+
+# Generated data (the image seeds its own database) and eval reports
+backend/data/*.db
+backend/data/*.db-*
+backend/evals/results
+
+# Node: dependencies are installed with npm ci inside the image (host binaries are macOS-specific)
+**/node_modules
+frontend/dist
+frontend/coverage
+**/*.tsbuildinfo
+
+# Not used by the image
+backend/tests
+docs
+deploy
+scripts
+Makefile
+docker-compose.yml
+render.yaml
+*.pdf

@@ -1,0 +1,41 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# --- Secrets / local env (NEVER commit API keys) ---
+.env
+.env.*
+!.env.example
+
+# --- Generated data (rebuilt deterministically by app.db.seed) ---
+backend/data/*.db
+backend/data/*.db-journal
+backend/data/*.db-wal
+backend/data/*.db-shm
+# Eval runs: keep only the published reports (README links to latest.md); scratch runs stay local.
+backend/evals/results/*
+!backend/evals/results/latest.md
+!backend/evals/results/latest.json
+!backend/evals/results/baseline.md
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Assignment brief (company material, keep out of the public repo) ---
+FD Engineer Hiring Assignment.pdf

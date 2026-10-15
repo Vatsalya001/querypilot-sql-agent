@@ -1,0 +1,222 @@
+@import 'tailwindcss';
+
+/* Dark mode follows the `dark` class on <html> (set by useTheme and the inline script in index.html). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, sans-serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    monospace;
+
+  --animate-fade-in: fade-in 0.25s ease-out both;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-caret: caret 1s steps(2, start) infinite;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes caret {
+    to {
+      visibility: hidden;
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-indigo-500);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    @apply bg-indigo-500/20;
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  summary {
+    cursor: pointer;
+  }
+
+  /* Thin, theme-aware scrollbars. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-zinc-300) transparent;
+  }
+  .dark * {
+    scrollbar-color: var(--color-zinc-700) transparent;
+  }
+}
+
+@layer components {
+  /* Markdown rendered from agent messages. */
+  .md {
+    @apply text-[0.9375rem] leading-relaxed break-words text-zinc-700 dark:text-zinc-300;
+  }
+  .md > * + * {
+    margin-top: 0.65em;
+  }
+  .md strong {
+    @apply font-semibold text-zinc-900 dark:text-zinc-100;
+  }
+  .md a {
+    @apply font-medium text-indigo-600 underline decoration-indigo-300 underline-offset-2 hover:decoration-indigo-600 dark:text-indigo-400 dark:decoration-indigo-700;
+  }
+  .md ul {
+    @apply list-disc space-y-1 pl-5 marker:text-zinc-400;
+  }
+  .md ol {
+    @apply list-decimal space-y-1 pl-5 marker:text-zinc-400;
+  }
+  .md h1,
+  .md h2,
+  .md h3,
+  .md h4 {
+    @apply font-semibold text-zinc-900 dark:text-zinc-100;
+  }
+  .md h1 {
+    @apply text-lg;
+  }
+  .md h2 {
+    @apply text-base;
+  }
+  .md :not(pre) > code {
+    @apply rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-px font-mono text-[0.84em] text-zinc-800 dark:border-zinc-700/60 dark:bg-zinc-800/70 dark:text-zinc-200;
+  }
+  .md pre {
+    @apply overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-[0.8125rem] leading-relaxed dark:border-zinc-800 dark:bg-zinc-900;
+  }
+  .md blockquote {
+    @apply border-l-2 border-zinc-300 pl-3 text-zinc-500 dark:border-zinc-700 dark:text-zinc-400;
+  }
+  .md table {
+    @apply w-full border-collapse text-sm;
+  }
+  .md th,
+  .md td {
+    @apply border border-zinc-200 px-2 py-1 text-left dark:border-zinc-800;
+  }
+  .md th {
+    @apply bg-zinc-50 font-semibold dark:bg-zinc-900;
+  }
+  .md hr {
+    @apply border-zinc-200 dark:border-zinc-800;
+  }
+
+  /* SQL syntax highlighting (highlight.js token classes), tuned for both themes. */
+  .sql-code {
+    @apply text-zinc-800 dark:text-zinc-200;
+  }
+  .sql-code .hljs-keyword,
+  .sql-code .hljs-meta {
+    @apply font-medium text-indigo-600 dark:text-indigo-300;
+  }
+  .sql-code .hljs-built_in,
+  .sql-code .hljs-type {
+    @apply text-sky-700 dark:text-sky-300;
+  }
+  .sql-code .hljs-string,
+  .sql-code .hljs-regexp {
+    @apply text-emerald-700 dark:text-emerald-300;
+  }
+  .sql-code .hljs-number,
+  .sql-code .hljs-literal {
+    @apply text-amber-700 dark:text-amber-300;
+  }
+  .sql-code .hljs-comment {
+    @apply text-zinc-400 italic dark:text-zinc-500;
+  }
+  .sql-code .hljs-operator,
+  .sql-code .hljs-punctuation {
+    @apply text-zinc-500 dark:text-zinc-400;
+  }
+  .sql-code .hljs-variable,
+  .sql-code .hljs-template-variable,
+  .sql-code .hljs-symbol,
+  .sql-code .hljs-attr {
+    @apply text-rose-600 dark:text-rose-300;
+  }
+  .sql-code .hljs-title,
+  .sql-code .hljs-name {
+    @apply text-violet-700 dark:text-violet-300;
+  }
+
+  /* Loading shimmer used for skeleton rows. */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-zinc-200) 0%,
+      var(--color-zinc-100) 50%,
+      var(--color-zinc-200) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-md;
+  }
+  .dark .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-zinc-800) 0%,
+      var(--color-zinc-700) 50%,
+      var(--color-zinc-800) 100%
+    );
+    background-size: 200% 100%;
+  }
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Respect the user's reduced-motion preference everywhere. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

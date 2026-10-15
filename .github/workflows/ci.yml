@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (ruff, pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # Offline rule-based LLM: CI never calls a model or needs an API key.
+      LLM_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Seed the sample database
+        run: python -m app.db.seed --reset
+      - name: Test
+        run: pytest
+
+  frontend:
+    name: Frontend (vitest, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Docker image (build, smoke test)
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: querypilot:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test the container (mock LLM)
+        run: |
+          docker run -d --name querypilot -p 8000:8000 -e LLM_PROVIDER=mock querypilot:ci
+          for _ in $(seq 1 30); do
+            if curl -fs http://localhost:8000/api/health > /dev/null; then break; fi
+            sleep 2
+          done
+          health=$(curl -fsS http://localhost:8000/api/health)
+          echo "health: $health"
+          # Runs unprivileged, and the baked database is not writable by that user.
+          docker exec querypilot sh -c 'test "$(id -u)" = 1000 && test ! -w /app/data/company.db'
+          index=$(curl -fsS http://localhost:8000/)
+          grep -qi '<!doctype html' <<< "$index"
+          schema=$(curl -fsS http://localhost:8000/api/schema)
+          grep -q '"tables"' <<< "$schema"
+          # Full agent runs (JSON and SSE): generation, validation and execution on the baked database.
+          answer=$(curl -fsS -X POST http://localhost:8000/api/chat \
+            -H 'Content-Type: application/json' -d '{"message": "Show all customers"}')
+          echo "chat: ${answer:0:400}"
+          grep -q '"status":"success"' <<< "$answer"
+          stream=$(curl -fsSN --max-time 60 -X POST http://localhost:8000/api/chat/stream \
+            -H 'Content-Type: application/json' -d '{"message": "Show all customers"}')
+          grep -q '^event: final' <<< "$stream"
+          grep -q '^event: done' <<< "$stream"
+      - name: Container logs
+        if: always()
+        run: docker logs querypilot || true

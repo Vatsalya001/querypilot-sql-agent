@@ -1,0 +1,37 @@
+# Render Blueprint: free Docker web service serving the API and the UI from one container.
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo -> enter GROQ_API_KEY -> Deploy Blueprint.
+# Step-by-step guide: docs/DEPLOYMENT.md. Free instances sleep after 15 minutes without traffic, and the
+# next request waits about a minute for the cold start.
+services:
+  - type: web
+    name: querypilot
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    # Redeploy a pushed commit only after its GitHub Actions checks pass, so a broken commit never
+    # replaces a working demo. Dashboard -> Manual Deploy deploys immediately when needed.
+    autoDeployTrigger: checksPass
+    envVars:
+      # Free hosts cannot run a 9B model, so the hosted demo uses Groq's free API. Model ids are config,
+      # so a model deprecation is an env var change, not a code change.
+      - key: LLM_PROVIDER
+        value: groq
+      - key: LLM_MODEL
+        value: openai/gpt-oss-120b
+      - key: LLM_FAST_MODEL
+        value: openai/gpt-oss-20b
+      - key: LLM_FALLBACK_MODELS
+        value: qwen/qwen3.8-27b
+      # Secret: Render asks for it when the Blueprint is created. Never commit it.
+      - key: GROQ_API_KEY
+        sync: false
+      # Per-IP limits that protect the shared free Groq quota.
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "10"
+      - key: RATE_LIMIT_PER_DAY
+        value: "300"
+      # The UI is served from the same origin as the API, so no cross-origin access is needed.
+      - key: CORS_ORIGINS
+        value: ""

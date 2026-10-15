@@ -1,0 +1,32 @@
+# Run the production image locally: docker compose up --build, then open http://localhost:8000
+#
+# The LLM keeps running on the host. Docker on macOS has no access to the Metal GPU, so qwen3.5:9b inside
+# a container would run CPU-only and far too slowly. The container reaches the host's Ollama through
+# host.docker.internal instead (start it first with `make ollama`). To use Groq instead, set
+# LLM_PROVIDER=groq and GROQ_API_KEY in .env.
+name: querypilot
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: querypilot:latest
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Not ${OLLAMA_BASE_URL}: .env points that at localhost, which inside a container is the container
+      # itself. Override with DOCKER_OLLAMA_BASE_URL if Ollama runs somewhere else.
+      OLLAMA_BASE_URL: ${DOCKER_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # Pinned to the image layout, so host paths or ports in .env cannot break the container
+      # (an empty DATABASE_PATH selects the database baked into the image).
+      PORT: "8000"
+      STATIC_DIR: /app/static
+      DATABASE_PATH: ""
+    extra_hosts:
+      # Docker Desktop resolves host.docker.internal on its own; this mapping makes it work on Linux too.
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

@@ -1,0 +1,57 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	guard_input(guard_input)
+	detect_intent(detect_intent)
+	validate_scope(validate_scope)
+	retrieve_schema(retrieve_schema)
+	diagnose_sql(diagnose_sql)
+	generate_sql(generate_sql)
+	validate_sql(validate_sql)
+	optimize_sql(optimize_sql)
+	execute_sql(execute_sql)
+	explain_sql(explain_sql)
+	answer_question(answer_question)
+	ask_clarification(ask_clarification)
+	reject_request(reject_request)
+	refuse_destructive(refuse_destructive)
+	handle_failure(handle_failure)
+	respond(respond)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> guard_input;
+	answer_question --> respond;
+	ask_clarification --> respond;
+	detect_intent --> validate_scope;
+	diagnose_sql -.-> generate_sql;
+	diagnose_sql -.-> optimize_sql;
+	diagnose_sql -.-> refuse_destructive;
+	execute_sql --> explain_sql;
+	explain_sql --> respond;
+	generate_sql -.-> ask_clarification;
+	generate_sql -.-> handle_failure;
+	generate_sql -.-> validate_sql;
+	guard_input -.-> detect_intent;
+	guard_input -.-> refuse_destructive;
+	guard_input -.-> reject_request;
+	handle_failure --> respond;
+	optimize_sql --> execute_sql;
+	refuse_destructive --> respond;
+	reject_request --> respond;
+	retrieve_schema -.-> diagnose_sql;
+	retrieve_schema -.-> generate_sql;
+	validate_scope -.-> answer_question;
+	validate_scope -.-> ask_clarification;
+	validate_scope -.-> refuse_destructive;
+	validate_scope -.-> reject_request;
+	validate_scope -.-> retrieve_schema;
+	validate_sql -.-> generate_sql;
+	validate_sql -.-> handle_failure;
+	validate_sql -.-> optimize_sql;
+	respond --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc

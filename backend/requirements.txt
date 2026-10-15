@@ -1,0 +1,15 @@
+# Runtime dependencies (all open-source / free)
+langgraph>=1.2,<2
+langchain-core>=1.6,<2
+langchain-groq>=1.1,<2
+langchain-openai>=1.7,<2
+langchain-google-genai>=4.4,<5
+langchain-ollama>=1.1,<2
+fastapi>=0.143,<1
+uvicorn[standard]>=0.54,<1
+sse-starlette>=3.5,<4
+sqlglot>=30.23,<31
+pydantic>=2.14,<3
+pydantic-settings>=2.16,<3
+python-dotenv>=1.1,<2
+httpx>=0.28,<1
