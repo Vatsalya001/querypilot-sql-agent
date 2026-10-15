@@ -15,8 +15,10 @@ them as written. Talking points are suggestions, so keep each to a sentence or t
 | 5 | Send "Show all customers." once, then delete that chat | Confirms the model answers warm (about 7-10 s) |
 | 6 | Start the recording (macOS: Cmd+Shift+5, or Loom) | 3-5 minutes |
 
-Alternative: record against the public Groq deployment ([DEPLOYMENT.md](DEPLOYMENT.md)). Hosted models do
-not depend on the laptop's GPU, which avoids most of the local waits (Groq latency has not been measured yet).
+Recommended: record against the live deployment (https://querypilot-wucj.onrender.com, Groq `openai/gpt-oss-120b`).
+Every prompt in the shot list was rehearsed on the final code with the hosted model: answers took 0.6-2.5 s each
+(guard rejections are instant). Leave about 10 seconds between prompts so the free tier's 8,000 tokens/minute limit
+is never hit; the narration gives that pause naturally. Open the URL two minutes before recording to wake it up.
 
 Expected local latencies (warm model): generate 7-13 s, follow-up 6-16 s, explain 7-10 s, refusals 2-6 s,
 guard rejections instantly, and 16-40 s for long outputs (optimize, debug, multi-table Top-N). Talk over the
