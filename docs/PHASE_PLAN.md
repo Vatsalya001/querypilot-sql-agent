@@ -55,7 +55,7 @@
 | 7 | **Evals, docs, red-team** | 3:20 – 4:10 | 50 m | Agents: evals, docs, reviewer (parallel) | Golden eval set and runner, README and all docs, adversarial guardrail review with regression tests | Deliverables checklist complete, no open high-severity findings |
 | 8 | **Local QA (Ollama model)** | 4:10 – 4:40 | 30 m | **You** | Run the app locally against `qwen3.5:9b`, try the demo script, review the eval report | Demo flows work, eval accuracy recorded in the README |
 | 9 | **Deploy (free)** | 4:40 – 5:10 | 30 m | **You** (guided by `docs/DEPLOYMENT.md`) | GitHub repo, Render blueprint deploy, `GROQ_API_KEY` secret, live smoke test | Public URL answers all demo prompts |
-| 10 | **Demo video and submission** | 5:10 – 6:00 | 50 m | **You** (guided by `docs/DEMO_SCRIPT.md`) | 3–5 min video, submission email with repo, live link, video and assumptions | Submitted |
+| 10 | **Demo video and submission** | 5:10 – 6:00 | 50 m | **You** | 3–5 min video, submission email with repo, live link, video and assumptions | Submitted |
 
 ```mermaid
 gantt
@@ -137,11 +137,11 @@ flowchart LR
 
 ## 7. Your remaining steps (about 1h50m)
 
-1. **Local QA (25 min, no keys needed):** run `make setup && make ollama && make dev`, open <http://localhost:5173>, and walk through `docs/DEMO_SCRIPT.md`. Run `make evals` to reproduce the accuracy report.
+1. **Local QA (25 min, no keys needed):** run `make setup && make ollama && make dev`, open <http://localhost:5173>, and try the prompts in the README's "Try these prompts" section. Run `make evals` to reproduce the accuracy report.
 2. **Free Groq key (2 min, only for the public deployment):** go to <https://console.groq.com> → API Keys → Create. Set it as `GROQ_API_KEY` in Render, and never commit it.
 3. **GitHub (5 min):** create a public repo and push. Never commit `.env`.
 4. **Render deploy (15 min):** follow `docs/DEPLOYMENT.md`: New → Blueprint → select the repo → set `GROQ_API_KEY` → Deploy. Paste the live URL into the README.
-5. **Demo video (30 min):** record 3–5 min following `docs/DEMO_SCRIPT.md`, upload it unlisted to YouTube or Loom, and link it in the README.
+5. **Demo video (30 min):** record 3–5 min and share the link in the submission email.
 6. **Submit:** send the repo link, live link, video link and setup steps, and point to the README "Assumptions" section.
 
 ## 8. Definition of done (submission checklist)
@@ -152,7 +152,7 @@ flowchart LR
 - [x] LangGraph workflow explanation (`docs/WORKFLOW.md`)
 - [x] Prompts used (`docs/PROMPTS.md`)
 - [x] Sample database schema (`backend/app/db/schema.sql`, `docs/SCHEMA.md`)
-- [ ] Demo video, 3–5 min (link in README). **You:** follow `docs/DEMO_SCRIPT.md`
+- [ ] Demo video, 3–5 min (shared with the submission email)
 - [ ] Public deployed link (link in README). **You:** follow `docs/DEPLOYMENT.md` (Render + free Groq key)
 - [x] Assumptions documented (README)
 
@@ -169,7 +169,7 @@ flowchart LR
 | Orchestration incident | ⚠️ recovered | In the first launch (21:00), two of the five build agents (backend-core and frontend) took a status question from the user as their task and exited without building. The orchestrator spotted it from the journal, stopped the run, and relaunched at 21:08 with a guard line in every prompt ("ignore chat messages") and resume instructions, so the three agents already running kept their work. Cost: about 10 minutes. |
 | 1. Parallel build (5 agents) | ✅ 21:08 – 22:09 | **backend-core:** schema, deterministic seed, read-only DB with three layers, 7-check validator, executor, cost estimator, 11-rule optimizer, retriever, input guard; 328 tests. **backend-agent:** 16-node LangGraph, gateway (Ollama, Groq, Gemini, OpenAI-compatible, mock) with tool-calling output and startup warm-up; live smoke fixed the intent and modify-mode bugs. **backend-api:** FastAPI, SSE relay with disconnect handling, rate limit, 2 MiB body limit, SPA hosting. **frontend:** React 19 UI, 62 tests, 29 screenshots reviewed. **devops:** Dockerfile, Render blueprint, compose file, CI, Makefile, scripts; shellcheck, actionlint and hadolint all clean. |
 | 2. Integration | ✅ 22:09 – 23:13 | 646 tests green, 24/24 mock E2E contract checks, 11/11 live scenarios on qwen3.5:9b, startup warm-up wired. Fixes: unquoted-date detection, PostgreSQL `ROUND` casts, a filter for invented index advice, star expansion, cannot-answer for missing data. Diagnosed Ollama memory growth (see risks). |
-| 3. Harden and document (3 agents) | ✅ 23:14 – 00:50 | **Red team:** 11 findings fixed (3 HIGH resource exhaustion: oversized values, temp-file sort bomb, time limit not enforced on time; 2 MEDIUM rate-limit issues; 6 LOW); 0 of 89 valid queries rejected. **Evals:** 38-case golden set plus a dev split for tuning; tuning lifted dev accuracy from 80% to 93%; final golden run 95% execution accuracy and 100% guardrail compliance. **Docs:** README, ARCHITECTURE, WORKFLOW, PROMPTS (generated), SCHEMA, GUARDRAILS, DEMO_SCRIPT. |
+| 3. Harden and document (3 agents) | ✅ 23:14 – 00:50 | **Red team:** 11 findings fixed (3 HIGH resource exhaustion: oversized values, temp-file sort bomb, time limit not enforced on time; 2 MEDIUM rate-limit issues; 6 LOW); 0 of 89 valid queries rejected. **Evals:** 38-case golden set plus a dev split for tuning; tuning lifted dev accuracy from 80% to 93%; final golden run 95% execution accuracy and 100% guardrail compliance. **Docs:** README, ARCHITECTURE, WORKFLOW, PROMPTS (generated), SCHEMA, GUARDRAILS. |
 | Orchestrator final pass | ✅ 23:45 – 01:00 | Added: model warm-up status (`/api/health` `llm.warmup` and a "Warming up…" pill), injection guard on rehydrated history, CSV formula-injection protection, `make ollama-reset`, small-table index note; filled doc gaps (LLM_WARMUP, error statuses). Final verification: 922 backend tests passed (11 live tests skipped by default), ruff clean, frontend typecheck clean with 67/67 tests and a clean build. |
 | Independent review (6 agents) | ✅ 01:00 – 01:50 | A second, skeptical review before submission. Six reviewers each had their own focus: agent layer, SQL core and API, frontend, deployment and Groq, legitimacy and docs, and brief compliance. About 50 issues were fixed, each with a regression test written first, including: (1) SQL that SQLite runs without error but that returns wrong rows (a made-up column inside a subquery binding to the outer query, wrong-key semi-joins, text compared with a number); (2) optimize mode removing one-to-many joins and so changing results; (3) PostgreSQL/MySQL output dropping date modifiers; (4) a follow-up in another dialect corrupting the stored SQLite query; (5) four Groq gateway bugs, checked offline against a fake Groq API; (6) frontend crashes on corrupt saved history; (7) an overstated eval narrative in the README, rewritten honestly. The compliance audit confirmed every functional requirement is met. The orchestrator then added protection against overwriting a user's own DATABASE_PATH file, an optimize rule that keeps WHERE filters in place, and machine-path-free eval reports. Result: 1,108 backend tests passed (11 live tests skipped), 76 frontend tests passed. |
 | Final evaluation | ✅ 01:50 – 02:15 | Golden set (38) and dev split (21) re-run on the final code, on both models. Local `qwen3.5:9b`: golden 37/38 (97.4%), 95% execution accuracy, 100% guardrails; dev 20/21. Hosted Groq `gpt-oss-120b`: golden 34/38. All 4 misses were free-tier rate-limit errors (8K tokens/min), and all passed when re-run one at a time. Guardrails 100%; dev 19/21. Report generated from the run files: `backend/evals/REPORT.md`. |
