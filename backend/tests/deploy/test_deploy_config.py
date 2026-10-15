@@ -14,6 +14,9 @@ from typing import Any
 import pytest
 import yaml
 from fastapi.testclient import TestClient
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
+from packaging.version import Version
 
 from app.config import REPO_ROOT, Settings
 from app.main import create_app
@@ -89,6 +92,27 @@ def test_env_example_only_documents_real_settings() -> None:
     assert groq_block == {key: _render_values()[key] for key in LLM_KEYS}
 
 
+def test_constraints_pin_every_requirement_inside_its_range() -> None:
+    backend = REPO_ROOT / "backend"
+    pins = {}
+    for line in (backend / "constraints.txt").read_text(encoding="utf-8").splitlines():
+        if line.strip() and not line.startswith("#"):
+            name, version = line.split("==")
+            pins[canonicalize_name(name)] = Version(version)
+    requirements = [
+        Requirement(line.split("#")[0])
+        for path in ("requirements.txt", "requirements-dev.txt")
+        for line in (backend / path).read_text(encoding="utf-8").splitlines()
+        if line.split("#")[0].strip() and not line.startswith("-r")
+    ]
+
+    assert requirements
+    for requirement in requirements:
+        pinned = pins.get(canonicalize_name(requirement.name))
+        assert pinned is not None, f"{requirement.name} is not pinned in backend/constraints.txt"
+        assert requirement.specifier.contains(pinned), f"{requirement.name}=={pinned} violates {requirement}"
+
+
 def test_image_runs_unprivileged_on_the_injected_port_without_secrets_in_the_context() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
     runtime_stage = dockerfile.rsplit("\nFROM ", 1)[1]
@@ -96,4 +120,5 @@ def test_image_runs_unprivileged_on_the_injected_port_without_secrets_in_the_con
 
     assert re.search(r"^USER (?!root)\w+", runtime_stage, re.MULTILINE)
     assert '${PORT:-8000}' in runtime_stage and "--workers" not in runtime_stage  # one worker: in-memory state
+    assert "-c constraints.txt" in runtime_stage  # the tested versions, not the newest ones
     assert {"**/.env", "**/.env.*", "**/.venv", "**/node_modules", "backend/data/*.db"} <= ignored

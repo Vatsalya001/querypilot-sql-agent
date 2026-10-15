@@ -157,10 +157,21 @@ def file_sha256(path: Path) -> str:
 
 
 def prompts_fingerprint(agent: SQLAgent) -> str:
-    """Hash of the four static system prompts, tying a report to the prompt version that produced it."""
+    """Hash of the four static system prompts plus the per-mode SQL instructions (the prompt version)."""
+    from app.agent.prompts import _MODE_INSTRUCTIONS
+
     prompts = agent.prompts
-    joined = "\x1e".join((prompts.intent, prompts.sql, prompts.explain, prompts.answer))
+    modes = [f"{name}={text}" for name, text in sorted(_MODE_INSTRUCTIONS.items())]
+    joined = "\x1e".join((prompts.intent, prompts.sql, prompts.explain, prompts.answer, *modes))
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+def display_path(path: Path) -> str:
+    """Path relative to backend/ for reports (no machine-specific absolute paths); else the file name."""
+    try:
+        return str(Path(path).resolve().relative_to(Path(__file__).resolve().parent.parent))
+    except ValueError:
+        return Path(path).name
 
 
 async def run_case(agent: SQLAgent, case: GoldenCase, scorer: Scorer) -> CaseResult:
@@ -243,12 +254,12 @@ async def run_suite(
         "llm_calls": sum(turn.llm_calls for result in results for turn in result.turns),
         "structured_output": {"recovered": counter.recovered, "fallbacks": counter.fallbacks,
                               "samples": counter.samples},
-        "database": str(database),
+        "database": display_path(database),
         "database_unchanged": file_sha256(database) == database_hash,
         "prompts_sha256": prompts_fingerprint(agent),
         "max_sql_attempts": settings.max_sql_attempts,
         "golden": {
-            "path": str(golden_path),
+            "path": display_path(golden_path),
             "version": golden_version(golden_path),
             "sha256": file_sha256(golden_path),
             "cases_total": len(load_golden(golden_path)),

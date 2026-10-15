@@ -69,3 +69,34 @@ def test_automatic_index_note(db_path: Path, catalog: SchemaCatalog) -> None:
 @pytest.mark.parametrize("sql", ["SELECT * FROM Nope", "SELEC 1", "DELETE FROM Orders", ""])
 def test_returns_none_when_no_plan_is_possible(db_path: Path, catalog: SchemaCatalog, sql: str) -> None:
     assert estimate_cost(sql, db_path, catalog) is None
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM OrderItems LIMIT 5",  # used to be "medium, 5,063 rows scanned"
+        "SELECT * FROM Orders WHERE Status = 'Shipped' LIMIT 10",
+        "SELECT * FROM Orders ORDER BY OrderDate DESC LIMIT 10",  # read in index order, stops after 10
+        "SELECT o.OrderID, c.FirstName FROM Orders o JOIN Customers c ON c.CustomerID = o.CustomerID LIMIT 20",
+    ],
+)
+def test_a_limit_without_sorting_stops_the_scan_early(db_path: Path, catalog: SchemaCatalog, sql: str) -> None:
+    cost = estimate(sql, db_path, catalog)
+    assert cost.level == "low", cost
+    assert cost.estimated_rows_scanned < 1_000
+    assert any("LIMIT" in note for note in cost.notes), cost.notes
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM OrderItems ORDER BY Quantity DESC LIMIT 5",  # every row is sorted first
+        "SELECT COUNT(*) FROM OrderItems LIMIT 5",  # every row is counted
+        "SELECT DISTINCT ProductID, Quantity FROM OrderItems LIMIT 5",
+        "SELECT * FROM OrderItems LIMIT 5 OFFSET 4000",  # the skipped rows are read too
+        "SELECT * FROM OrderItems WHERE UnitPrice > (SELECT AVG(UnitPrice) FROM OrderItems) LIMIT 5",
+    ],
+)
+def test_a_limit_does_not_hide_work_that_reads_every_row(db_path: Path, catalog: SchemaCatalog, sql: str) -> None:
+    cost = estimate(sql, db_path, catalog)
+    assert cost.level != "low", cost

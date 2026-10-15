@@ -150,3 +150,91 @@ def test_a_real_cartesian_product_with_a_cte_is_still_reported(catalog: SchemaCa
     bare = validate_sql("SELECT * FROM Orders o JOIN Customers c", catalog, db_path=db_path)
     assert any("without a join condition" in warning for warning in bare.warnings), bare.warnings
     assert not any("ON TRUE" in warning for warning in bare.warnings)
+
+
+# ---- text compared with a number: always true or always false in SQLite ----------------------------------
+
+TEXT_VS_NUMBER = [
+    ("strftime_eq", "SELECT * FROM Orders WHERE strftime('%Y', OrderDate) = 2024", "sqlite"),  # 0 rows, not 494
+    ("strftime_gt", "SELECT * FROM Orders WHERE strftime('%Y', OrderDate) > 2023", "sqlite"),  # every row
+    ("strftime_in", "SELECT * FROM Orders WHERE strftime('%m', OrderDate) IN (1, 2, 3)", "sqlite"),
+    ("strftime_between", "SELECT * FROM Orders WHERE strftime('%Y', OrderDate) BETWEEN 2023 AND 2024", "sqlite"),
+    ("reversed", "SELECT * FROM Orders WHERE 2024 = strftime('%Y', OrderDate)", "sqlite"),
+    ("having", "SELECT strftime('%Y', OrderDate) AS y, COUNT(*) FROM Orders GROUP BY y "
+               "HAVING strftime('%Y', OrderDate) >= 2024", "sqlite"),
+    ("date_function", "SELECT * FROM Orders WHERE date(OrderDate) > 2024", "sqlite"),
+    ("substr", "SELECT * FROM Customers WHERE substr(Phone, 2, 3) = 213", "sqlite"),
+    # correct in MySQL, but normalized to STRFTIME('%Y', HireDate) = 2024 for SQLite: silently 0 rows
+    ("mysql_input", "SELECT * FROM Employees WHERE DATE_FORMAT(HireDate, '%Y') = 2024", "mysql"),
+]
+
+
+@pytest.mark.parametrize(("sql", "dialect"), [case[1:] for case in TEXT_VS_NUMBER], ids=[c[0] for c in TEXT_VS_NUMBER])
+def test_text_compared_with_a_number_is_rejected(catalog: SchemaCatalog, db_path: Path, sql: str, dialect: str) -> None:
+    report = validate_sql(sql, catalog, dialect=dialect, db_path=db_path)
+    assert not report.valid
+    assert any("compares" in error and "with a number" in error for error in report.errors), report.errors
+
+
+def test_the_text_number_comparison_really_returns_no_rows(db_path: Path) -> None:
+    wrong = execute_query("SELECT COUNT(*) FROM Orders WHERE strftime('%Y', OrderDate) = 2024", db_path)
+    fixed = execute_query("SELECT COUNT(*) FROM Orders WHERE CAST(strftime('%Y', OrderDate) AS INTEGER) = 2024",
+                          db_path)
+    assert wrong.rows == [[0]] and fixed.rows[0][0] > 0
+
+
+def test_the_error_suggests_a_working_comparison(catalog: SchemaCatalog, db_path: Path) -> None:
+    report = validate_sql(TEXT_VS_NUMBER[0][1], catalog, db_path=db_path)
+    assert any("CAST(STRFTIME('%Y', OrderDate) AS INTEGER) = 2024" in error for error in report.errors), report.errors
+    dated = validate_sql("SELECT * FROM Orders WHERE date(OrderDate) > 2024", catalog, db_path=db_path)
+    assert any("'2024-01-01'" in error for error in dated.errors), dated.errors
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        "SELECT * FROM Orders WHERE strftime('%Y', OrderDate) = '2024'",
+        "SELECT * FROM Orders WHERE CAST(strftime('%Y', OrderDate) AS INTEGER) = 2024",
+        "SELECT * FROM Orders WHERE CAST(strftime('%m', OrderDate) AS INTEGER) BETWEEN 1 AND 3",
+        "SELECT * FROM Orders WHERE strftime('%Y', OrderDate) + 0 = 2024",
+        "SELECT * FROM Orders WHERE strftime('%m', OrderDate) IN ('01', '02', '03')",
+        "SELECT * FROM Orders WHERE julianday(ShippedDate) - julianday(OrderDate) > 3",
+        "SELECT * FROM Products WHERE length(ProductName) > 20",
+        "SELECT * FROM Employees WHERE HireDate >= '2024-01-01'",
+        "SELECT * FROM Orders WHERE strftime('%Y', OrderDate) IN (SELECT strftime('%Y', HireDate) FROM Employees)",
+    ],
+)
+def test_matching_types_stay_valid(catalog: SchemaCatalog, db_path: Path, sql: str) -> None:
+    report = validate_sql(sql, catalog, db_path=db_path)
+    assert report.valid, report.errors
+
+
+# ---- comma joins: the normalized SQL must keep the query planner's freedom ------------------------------
+
+
+def test_comma_joins_are_not_rewritten_as_cross_join(catalog: SchemaCatalog, db_path: Path) -> None:
+    """sqlglot reads ``FROM a, b`` as a CROSS JOIN; in SQLite that keyword also pins the join order.
+
+    The normalized SQL is what runs, so writing CROSS JOIN back made SQLite scan 5,063 order lines instead of
+    60 products here, and the optimizer (which reads the normalized SQL) never saw the comma join.
+    """
+    import sqlite3
+
+    from app.sql.dialects import format_sql, transpile
+    from app.sql.optimizer import analyze_query
+
+    sql = ("SELECT SUM(oi.Quantity) FROM OrderItems oi, Products p "
+           "WHERE p.ProductID = oi.ProductID AND p.Category = 'Software'")
+    report = validate_sql(sql, catalog, db_path=db_path)
+    assert report.valid and "CROSS JOIN" not in report.sql and ", Products AS p" in report.sql
+
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    try:
+        plans = [[row[3] for row in conn.execute(f"EXPLAIN QUERY PLAN {query}")] for query in (sql, report.sql)]
+    finally:
+        conn.close()
+    assert plans[0] == plans[1], plans
+    assert "CROSS JOIN" not in format_sql(sql)
+    assert any("comma-separated" in s.message for s in analyze_query(report.sql, catalog).suggestions)
+    # PostgreSQL and MySQL keep the explicit form: there a comma binds looser than JOIN
+    assert "CROSS JOIN" in transpile(sql, write="postgres", pretty=False)

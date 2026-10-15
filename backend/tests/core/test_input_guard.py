@@ -136,3 +136,26 @@ def test_sanitize_keeps_sql_comparisons_and_whitespace() -> None:
     assert sanitize_user_text("a\x00b\x07c​d\r\ne") == "abcd\ne"
     assert sanitize_user_text("top\n\n\n\n\n\nbottom") == "top\n\nbottom"
     assert sanitize_user_text("one\n\n\ntwo") == "one\n\n\ntwo"
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        # Regression: inline code and quotes around pasted SQL used to be kept, with the prose after them
+        # ("SELECT * FROM Orders` slow?"), so the turn failed with "unterminated quoted identifier".
+        ("Why is `SELECT * FROM Orders` slow?", "SELECT * FROM Orders"),
+        ("Explain `SELECT COUNT(*) FROM Orders WHERE Status = 'Shipped'` please",
+         "SELECT COUNT(*) FROM Orders WHERE Status = 'Shipped'"),
+        ("In `Orders`, why does `SELECT * FROM Orders;` return 2000 rows?", "SELECT * FROM Orders"),
+        ('explain "SELECT * FROM Orders WHERE Status = \'Shipped\'" for me',
+         "SELECT * FROM Orders WHERE Status = 'Shipped'"),
+        ("explain “SELECT FirstName FROM Customers”", "SELECT FirstName FROM Customers"),
+        # unchanged: plain SQL, MySQL identifiers in backticks, fenced code
+        ("Explain this query: SELECT `FirstName` FROM `Customers` WHERE `State` = 'Texas'",
+         "SELECT `FirstName` FROM `Customers` WHERE `State` = 'Texas'"),
+        ("Explain SELECT * FROM Orders WHERE Status = \"Shipped\"", "SELECT * FROM Orders WHERE Status = \"Shipped\""),
+        ("Fix `SELECT 1` or rather:\n```sql\nSELECT * FROM Orders\n```", "SELECT * FROM Orders"),
+    ],
+)
+def test_extract_sql_drops_inline_code_marks_and_quotes(message: str, expected: str) -> None:
+    assert extract_sql(message) == expected

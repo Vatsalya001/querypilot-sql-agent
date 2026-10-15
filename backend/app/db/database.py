@@ -54,6 +54,32 @@ _CONNECTION_LIMITS: tuple[tuple[int, int], ...] = (
 )
 
 
+APPLICATION_ID = 0x51504C54  # "QPLT": marks databases built by QueryPilot (PRAGMA application_id)
+
+
+class ForeignDatabaseError(RuntimeError):
+    """Raised when asked to rebuild a database file that QueryPilot did not create."""
+
+
+def _application_id(path: Path) -> int | None:
+    """The file's PRAGMA application_id, or None when it is missing or not an SQLite database."""
+    if not path.is_file():
+        return None
+    try:
+        conn = sqlite3.connect(readonly_uri(path), uri=True)
+        try:
+            return int(conn.execute("PRAGMA application_id").fetchone()[0])
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        return None
+
+
+def _is_foreign(path: Path) -> bool:
+    """True for an existing file that is not the bundled sample database (e.g. your own DATABASE_PATH)."""
+    return path.exists() and path != DEFAULT_DB_PATH and _application_id(path) != APPLICATION_ID
+
+
 def _data_version() -> int:
     """Fingerprint of schema.sql and the seed code, stored in ``PRAGMA user_version``."""
     digest = hashlib.sha256()
@@ -90,6 +116,7 @@ def _build(path: Path, version: int) -> dict[str, int]:
         if violations:
             raise RuntimeError(f"Seed data violates foreign keys: {violations[:3]}")
         conn.execute(f"PRAGMA user_version = {version}")
+        conn.execute(f"PRAGMA application_id = {APPLICATION_ID}")
         conn.commit()
         conn.execute("VACUUM")
         return counts
@@ -98,13 +125,22 @@ def _build(path: Path, version: int) -> dict[str, int]:
 
 
 def ensure_database(db_path: str | Path | None = None, *, reset: bool = False) -> Path:
-    """Create and seed the database if it is missing, outdated or ``reset`` is set; return its absolute path.
+    """Create and seed the sample database if it is missing, outdated or ``reset`` is set; return its path.
+
+    An existing file that QueryPilot did not build (no ``APPLICATION_ID`` marker and not the bundled default
+    path) is returned untouched, so pointing ``DATABASE_PATH`` at your own SQLite file never overwrites it.
 
     The database is built in a temporary file next to the target and moved into place with
     ``os.replace``, so readers never see a half-built file and concurrent builders cannot corrupt it.
     """
     path = Path(db_path).expanduser().resolve() if db_path else DEFAULT_DB_PATH
     version = _data_version()
+    if _is_foreign(path):
+        # Someone else's database (DATABASE_PATH pointed at an existing file): use it as-is, never replace it.
+        if reset:
+            raise ForeignDatabaseError(f"Refusing to rebuild {path}: it was not created by QueryPilot.")
+        logger.info("Using existing database %s as-is (not the bundled sample)", path)
+        return path
     if not reset and _is_current(path, version):
         return path
     path.parent.mkdir(parents=True, exist_ok=True)

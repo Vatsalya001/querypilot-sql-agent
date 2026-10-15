@@ -29,7 +29,7 @@ setup: ## Create backend/.venv (Python 3.12 via uv), install all dependencies, c
 	@command -v uv >/dev/null || { echo "uv is required: brew install uv (https://docs.astral.sh/uv/)"; exit 1; }
 	@command -v npm >/dev/null || { echo "Node.js 22+ is required: brew install node"; exit 1; }
 	@if [ -x $(VENV_PY) ]; then echo "Using the existing $(BACKEND)/.venv"; else uv venv --python 3.12 $(BACKEND)/.venv; fi
-	uv pip install --python $(VENV_PY) -r $(BACKEND)/requirements-dev.txt
+	uv pip install --python $(VENV_PY) -r $(BACKEND)/requirements-dev.txt -c $(BACKEND)/constraints.txt
 	cd $(FRONTEND) && npm install
 	@if [ -f .env ]; then echo ".env exists, leaving it unchanged"; else cp .env.example .env && echo "Created .env from .env.example"; fi
 	@$(MAKE) --no-print-directory seed

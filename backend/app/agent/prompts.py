@@ -240,6 +240,7 @@ OPTIMIZE_INSTRUCTIONS = (
     "unnecessary joins (remove one only if the results stay identical). Keep every row of the original: "
     "when a subquery becomes a join, use a LEFT JOIN (with COUNT(column) or COALESCE) wherever the original "
     "keeps rows that have no match. Keep its ORDER BY and LIMIT, and never add sorting, limits or filters. "
+    "Keep WHERE conditions in the WHERE clause; do not move them into JOIN ... ON. "
     "In changes, list each change you actually made (one short "
     "phrase each). In suggestions, copy the CREATE INDEX statements from the findings (never invent other "
     "indexes) and add at most two other short tips."
@@ -320,8 +321,10 @@ def destructive_message(operations: Sequence[str]) -> str:
 
 def failure_message(errors: Sequence[str]) -> str:
     """Message for requests that still had no valid SQL after the repair loop."""
-    listed = "; ".join(error.rstrip(".") for error in list(errors)[:3])
-    problems = f" Remaining problems: {listed}." if listed else ""
+    listed = "; ".join(error.strip().rstrip(".") for error in list(errors)[:3])
+    if listed and listed[-1] not in ".?!":
+        listed += "."
+    problems = f" Remaining problems: {listed}" if listed else ""
     return (
         "I couldn't produce a valid SQL query for this request, even after automatic repair."
         f"{problems} Try rephrasing the question or naming the tables and columns you need."

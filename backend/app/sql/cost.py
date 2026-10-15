@@ -2,7 +2,8 @@
 
 The plan is a tree of loops. Every ``SCAN`` reads a whole table (or index) once per row of the loops
 around it, every ``SEARCH`` reads a few rows per outer row, temporary B-trees (sorting, grouping,
-DISTINCT) add a penalty and correlated subqueries run once per outer row. The score is the estimated
+DISTINCT) add a penalty and correlated subqueries run once per outer row. A LIMIT on a query that streams
+its rows (no sorting, grouping, aggregates or subqueries) stops the loops early. The score is the estimated
 number of rows touched; it maps to a level: < 2,000 low, < 100,000 medium, otherwise high.
 """
 
@@ -121,10 +122,12 @@ class _Estimator:
         if text not in self.notes:
             self.notes.append(text)
 
-    def walk(self, nodes: list[_PlanNode], outer: float) -> None:
+    def walk(self, nodes: list[_PlanNode], outer: float) -> float:
+        """Account for sibling loops; returns the rows they produce (the innermost loop multiplier)."""
         loop = outer
         for node in nodes:
             loop = self.visit(node, loop, outer)
+        return loop
 
     def visit(self, node: _PlanNode, loop: float, outer: float) -> float:
         """Account for ``node``; returns the loop multiplier for the following sibling (nested loops)."""
@@ -197,6 +200,33 @@ class _Estimator:
         return max(1.0, rows * INDEX_EQUALITY_FRACTION)
 
 
+_ALL_ROWS_STEPS = ("USE TEMP B-TREE", "SUBQUERY", "MATERIALIZE", "CO-ROUTINE", "AUTOMATIC")
+"""Plan steps that read their input completely before (or regardless of when) the first row is returned."""
+
+
+def _int_value(node: exp.Expression | None) -> int | None:
+    value = node.args.get("expression") if isinstance(node, exp.Limit | exp.Offset) else None
+    if isinstance(value, exp.Literal) and not value.is_string and value.this.isdigit():
+        return int(value.this)
+    return None
+
+
+def _row_limit(statement: exp.Expression | None, plan: list[str]) -> int | None:
+    """Rows a streaming query reads before it stops (LIMIT plus OFFSET), or ``None`` if it reads all of them."""
+    if not isinstance(statement, exp.Select) or any(step in line for line in plan for step in _ALL_ROWS_STEPS):
+        return None
+    if statement.args.get("group") or statement.args.get("distinct") or statement.args.get("having"):
+        return None
+    if any(projection.find(exp.AggFunc, exp.Window) for projection in statement.expressions):
+        return None
+    limit = _int_value(statement.args.get("limit"))
+    if limit is None:
+        return None
+    offset = statement.args.get("offset")
+    skipped = _int_value(offset) if offset is not None else 0
+    return None if skipped is None else limit + skipped
+
+
 def _level(score: int) -> Literal["low", "medium", "high"]:
     if score < LOW_LIMIT:
         return "low"
@@ -222,7 +252,12 @@ def estimate_cost(sql: str, db_path: str | Path, catalog: SchemaCatalog) -> Cost
         statement = None
     roots, lines = _plan_tree(rows)
     estimator = _Estimator(catalog, statement)
-    estimator.walk(roots, 1.0)
+    produced = estimator.walk(roots, 1.0)
+    limit = _row_limit(statement, lines)
+    if limit is not None and produced > limit:
+        # Nested loops stop once the LIMIT is reached: the work shrinks with the share of rows produced.
+        estimator.scanned = max(float(limit), estimator.scanned * limit / produced)
+        estimator.note(f"LIMIT stops the scan after about {limit:,} of {round(produced):,} result rows.")
     scanned = round(estimator.scanned)
     score = round(estimator.scanned + estimator.penalty)
     notes = estimator.notes or ["Constant expression; no table is read."]

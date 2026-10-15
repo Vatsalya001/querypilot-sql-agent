@@ -29,9 +29,10 @@ WORKDIR /app
 # Unprivileged runtime user; uid 1000 is also what Hugging Face Spaces runs containers as.
 RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin app
 
-# Dependencies before code, so this layer stays cached until requirements.txt changes.
-COPY backend/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# Dependencies before code, so this layer stays cached until the requirements change. constraints.txt pins
+# the exact versions the test suite passed with, so a rebuild weeks later installs the same packages.
+COPY backend/requirements.txt backend/constraints.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -c constraints.txt
 
 COPY backend/app ./app
 COPY backend/scripts ./scripts

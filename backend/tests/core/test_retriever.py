@@ -79,3 +79,17 @@ def test_focus_hint_and_to_dict(catalog: SchemaCatalog) -> None:
 def test_max_tables_is_respected(catalog: SchemaCatalog) -> None:
     question = "employees departments customers products orders payments"
     assert len(retrieve_schema(question, catalog, max_tables=2).tables) <= 4  # 2 matches + bridges
+
+
+@pytest.mark.parametrize("question", ["How many people work in Sales?", "How many employees are in Sales?",
+                                      "List the Sales team's managers"])
+def test_a_department_named_like_a_synonym_is_still_found(catalog: SchemaCatalog, question: str) -> None:
+    # Regression: "sales" is a synonym for Orders, which hid the sample value 'Sales' of DepartmentName.
+    context = retrieve_schema(question, catalog)
+    assert "Departments" in context.tables, context.tables
+    assert "'sales' -> Departments.DepartmentName" in context.matched_terms["Departments"]
+
+
+@pytest.mark.parametrize("question", ["Sales by month in 2025", "total sales by state", "show monthly sales"])
+def test_sales_as_revenue_does_not_pull_in_departments(catalog: SchemaCatalog, question: str) -> None:
+    assert "Departments" not in retrieve_schema(question, catalog).tables

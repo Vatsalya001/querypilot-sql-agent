@@ -121,7 +121,7 @@ class _Scorer:
                         break
             self.columns(word, forms, parts=word not in claimed)
             self.descriptions(word)
-        self.values(text, claimed)
+        self.values(text, claimed, question)
 
     def columns(self, word: str, forms: list[str], *, parts: bool) -> None:
         """Exact column-name matches; CamelCase part matches (e.g. 'hire' -> HireDate) for unclaimed words.
@@ -145,15 +145,25 @@ class _Scorer:
             if pattern.search(table.description.lower()):
                 self.scores[table.name] = self.scores.get(table.name, 0.0) + DESCRIPTION_WEIGHT
 
-    def values(self, text: str, claimed: set[str]) -> None:
+    def values(self, text: str, claimed: set[str], question: str) -> None:
+        """Sample values in the question; a word already explained by a table name or synonym only counts
+        when written as a proper noun ("work in Sales" names the department, "sales by month" means revenue)."""
         for table in self.catalog.tables.values():
             for col in table.columns:
                 for value in col.sample_values:
                     lowered = value.lower()
-                    if lowered in claimed or len(lowered) < 3:
+                    if len(lowered) < 3 or (lowered in claimed and not _proper_noun(value, question)):
                         continue
                     if re.search(rf"(?<![a-z0-9]){re.escape(lowered)}(?![a-z0-9])", text):
                         self.hit(table.name, VALUE_WEIGHT, f"'{lowered}' -> {table.name}.{col.name}")
+
+
+def _proper_noun(value: str, question: str) -> bool:
+    """Whether ``value`` is written capitalized as in the data, somewhere other than the start of a sentence."""
+    if not value[:1].isupper():
+        return False
+    pattern = rf"(?<![A-Za-z0-9])(?<![.!?]\s)(?<!^){re.escape(value)}(?![A-Za-z0-9])"
+    return re.search(pattern, question.strip()) is not None
 
 
 def _sql_tables(sql: str | None, catalog: SchemaCatalog) -> list[str]:

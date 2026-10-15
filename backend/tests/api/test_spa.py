@@ -83,3 +83,32 @@ def test_static_dir_without_index_html_is_ignored(make_client: ClientFactory, tm
 
     assert response.status_code == 200
     assert response.json()["docs"] == "/api/docs"
+
+
+@pytest.mark.parametrize("path", ["/%00", "/history/abc%00def", "/" + "a" * 300, "/x/" + "b" * 300])
+def test_unusual_client_routes_get_the_app_instead_of_a_500(
+    make_client: ClientFactory, ui_dir: Path, path: str
+) -> None:
+    # Regression: a NUL byte (ValueError) or an over-long segment (OSError ENAMETOOLONG) in the path escaped
+    # the file lookup, so the catch-all answered 500 and logged a traceback for every such request.
+    client, _ = make_client(static_dir=str(ui_dir), raise_server_exceptions=False)
+
+    response = client.get(path)
+
+    assert response.status_code == 200, response.text
+    assert "<title>QueryPilot</title>" in response.text
+
+
+def test_wrong_method_on_an_api_route_is_405_with_or_without_the_ui(make_client: ClientFactory, ui_dir: Path) -> None:
+    # Regression: with the UI mounted, the GET catch-all answered "GET /api/chat" with a 404, as if the endpoint
+    # did not exist; without the UI the same request was a 405.
+    for options in ({"static_dir": str(ui_dir)}, {}):
+        client, _ = make_client(**options)
+
+        response = client.get("/api/chat")
+
+        assert response.status_code == 405, options
+        assert response.json()["code"] == "method_not_allowed"
+        assert "POST" in response.headers["allow"]
+    client, _ = make_client(static_dir=str(ui_dir))
+    assert client.get("/api/nope").status_code == 404

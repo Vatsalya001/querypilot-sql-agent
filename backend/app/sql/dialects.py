@@ -75,10 +75,23 @@ class _ReadableGenerator(Generator):
 
 
 class QueryPilotSQLite(SQLite):
-    """SQLite with readable negations."""
+    """SQLite with readable negations, and comma joins written back as commas."""
 
     class Generator(_ReadableGenerator, SQLite.Generator):
-        pass
+        def join_sql(self, expression: exp.Join) -> str:
+            # sqlglot reads "FROM a, b" as a CROSS JOIN (that keeps join precedence when transpiling). In SQLite
+            # the CROSS JOIN keyword also pins the join order, so the normalized SQL, which is what runs, would
+            # stop the query planner from choosing the cheaper order. A comma returns the same rows without it.
+            plain_cross = (
+                (expression.kind or "").upper() == "CROSS"
+                and not expression.side
+                and not expression.method
+                and expression.args.get("on") is None
+                and not expression.args.get("using")
+            )
+            if plain_cross:
+                return f", {self.sql(expression, 'this')}"
+            return super().join_sql(expression)
 
 
 class QueryPilotPostgres(Postgres):

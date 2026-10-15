@@ -28,9 +28,11 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements*.txt
-      - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+          cache-dependency-path: |
+            backend/requirements*.txt
+            backend/constraints.txt
+      - name: Install dependencies (the pinned versions the image uses)
+        run: pip install -r requirements-dev.txt -c constraints.txt
       - name: Lint
         run: ruff check .
       - name: Seed the sample database

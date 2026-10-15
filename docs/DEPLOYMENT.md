@@ -142,6 +142,13 @@ two stages:
    `backend/evals`, bakes the sample database into `/app/data/company.db`, and copies the built UI to
    `/app/static`.
 
+Both stages install exact versions: the frontend from `frontend/package-lock.json`, the backend from
+`backend/constraints.txt` (the versions the test suite passed with; `make setup` and CI use it too), so a
+rebuild weeks later installs the same packages. Every dependency ships prebuilt for linux/amd64 (Python
+wheels, and npm binaries for both musl and glibc, recorded in the lockfile), so neither stage needs a
+compiler. After changing `backend/requirements*.txt`, regenerate `backend/constraints.txt` with the
+`uv pip compile` command in its header and run the tests.
+
 The container runs as an unprivileged user (uid 1000) that cannot modify the database. It starts a single
 uvicorn worker on `$PORT` (default 8000) with `--proxy-headers`, and has a `HEALTHCHECK` on `/api/health`.
 There is a single worker on purpose: conversation memory and rate-limit counters live in process memory.
@@ -203,6 +210,8 @@ day. See <https://console.groq.com/docs/rate-limits> for current values. A typic
 calls (intent detection, SQL generation and the explanation), plus one for each repair attempt. The cheap
 steps (intent detection, explanations) use `openai/gpt-oss-20b`, which has its own quota.
 When a model returns HTTP 429, the gateway tries the models in `LLM_FALLBACK_MODELS` (`qwen/qwen3.8-27b`).
+Groq lists that model as a *preview* model, which it may retire at short notice. If it disappears, only the
+fallback stops working; replace it with a current model from <https://console.groq.com/docs/models>.
 
 ### Step 2: push the code to GitHub (5 minutes)
 
@@ -270,7 +279,9 @@ Finally, put the URL into the README.
 | `LLM_FALLBACK_MODELS` | `qwen/qwen3.8-27b` | Used when a model is rate-limited (HTTP 429) |
 | `GROQ_API_KEY` | entered in the dashboard | Secret (`sync: false`) |
 | `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_PER_DAY` | `10` / `300` | Per-client limits that protect the shared free quota |
-| `CORS_ORIGINS` | empty | The UI is served from the same origin, so cross-origin access is not needed |
+
+`CORS_ORIGINS` needs no entry: the image defaults it to empty (same-origin only), because the UI is served
+from the same origin as the API.
 
 To change a value, open the service in the dashboard, go to **Environment**, edit the value, and save. Render
 redeploys with the new value. A model deprecation needs only this change.
@@ -306,7 +317,7 @@ choose **Manual Deploy > Deploy latest commit**.
 after a long idle period (48 hours at the time of writing) instead of 15 minutes. That makes it a good
 choice if Render's cold starts get in the way.
 
-The complete steps, with tested `hf` CLI commands, are in
+The complete steps, with the `hf` CLI commands, are in
 [`deploy/huggingface/README.md`](../deploy/huggingface/README.md). That file is also the Space card: its YAML
 header (`sdk: docker`, `app_port: 8000`) tells Hugging Face how to run the image. In short:
 
@@ -457,4 +468,5 @@ kill <PID>
 | Render: the build fails at `npm ci` | Commit `frontend/package-lock.json`. |
 | Render: `/api/health` reports `"configured": false` | Set `GROQ_API_KEY` under **Environment**. |
 | Render: a push did not deploy | The commit's GitHub checks have not passed yet (or failed): see the **Actions** tab. Choose **Manual Deploy** to deploy anyway. |
-| Render: "Model ... is not available from groq" | Groq retired the model. Pick a current one from <https://console.groq.com/docs/models> and update `LLM_MODEL`, `LLM_FAST_MODEL` or `LLM_FALLBACK_MODELS`. |
+| Render: "Model ... is not available from groq" | Groq retired the model, or the id is misspelled. Pick a current one from <https://console.groq.com/docs/models> and update `LLM_MODEL`, `LLM_FAST_MODEL` or `LLM_FALLBACK_MODELS`. |
+| Render: every chat fails with "Could not reach the groq API" | Check the service logs. Groq may be down (<https://groqstatus.com>), or outbound HTTPS is blocked. |

@@ -87,7 +87,7 @@ Every requirement of the brief, where it is implemented and how it was verified.
 | Multiple dialects | SQLite (validated and executed), PostgreSQL and MySQL output via sqlglot, including date-idiom conversion | Done |
 | CSV export | Results tab | Done |
 | Prompt-injection protection | Normalized regex guard, sanitization and tagging, classifier flag, fixed refusal texts, no replay of rejected turns | Done |
-| Dockerized deployment | Multi-stage `Dockerfile`, `docker-compose.yml`, Render blueprint, Hugging Face Spaces card | Implemented, not yet built: Docker is not installed on the development machine, so the CI workflow (which builds the image and smoke-tests the container on every push) performs the first build. |
+| Dockerized deployment | Multi-stage `Dockerfile`, `docker-compose.yml`, Render blueprint, Hugging Face Spaces card | Done. Docker is not installed on the development machine, so GitHub Actions builds the image and smoke-tests the container on every push (health, runs as uid 1000, database not writable, a chat turn over JSON and SSE); the first run on 16 Oct 2026 passed. |
 | Unit and integration tests | Offline backend and frontend suites, full-stack API tests with the mock model, opt-in live tests against the real model, golden-set evals | Done ([Testing](#testing-and-evaluation)) |
 
 ## Quick start (macOS)
@@ -326,9 +326,10 @@ make evals       # golden-set evaluation against the configured model; reports i
 cd frontend && npm run build    # production build
 ```
 
-Unit tests never call a model or the network: the agent tests drive every graph path with an offline,
-rule-based mock that reads the same prompts a real model gets. CI (GitHub Actions) runs lint, both test suites,
-the frontend build, and a Docker build with a container smoke test on every push.
+Unit tests never call a model or an external service: the agent tests drive every graph path with an offline,
+rule-based mock that reads the same prompts a real model gets, and the hosted-provider tests talk to a local fake
+API. CI (GitHub Actions) runs lint, both test suites, the frontend build, and a Docker build with a container
+smoke test on every push.
 
 <!-- TEST_COUNTS_START -->
 <!-- Counts from: cd backend && .venv/bin/python -m pytest --collect-only -q -o addopts="" tests/<suite> (per directory),
@@ -336,14 +337,15 @@ the frontend build, and a Docker build with a container smoke test on every push
 
 | Suite | Location | Tests | What it covers |
 |---|---|---|---|
-| Backend core | `backend/tests/core` | 357 | Database build and read-only connection, catalog, validator, executor, cost, optimizer, dialects, retriever, input guard |
-| Agent | `backend/tests/agent` | 206 | Every graph path with the mock model, routing, prompts, LLM gateway, parsing, service and streaming |
-| API | `backend/tests/api` | 88 | Routes, errors, SSE relay, rate limit, body limit, SPA hosting, full stack with the real agent |
-| Evals | `backend/tests/evals` | 94 | Golden-set structure, result comparison, scoring, guardrail cases with the mock |
+| Backend core | `backend/tests/core` | 465 | Database build and read-only connection, catalog, validator (including semantic checks), executor, cost, optimizer, dialects, retriever, input guard |
+| Agent | `backend/tests/agent` | 238 | Every graph path with the mock model, routing, prompts, LLM gateway, parsing, node helpers, service and streaming |
+| API | `backend/tests/api` | 94 | Routes, errors, SSE relay, rate limit, body limit, SPA hosting, full stack with the real agent |
+| Evals | `backend/tests/evals` | 102 | Golden-set structure, result comparison, scoring, guardrail cases with the mock, report generation |
 | Security (red team) | `backend/tests/security` | 173 | Validator corpus, input-guard regressions, resource limits (memory, value size, time, result size), rate-limit hardening |
+| Deployment (offline) | `backend/tests/deploy` | 38 | Consistency of `render.yaml`, the Space guide, `.env.example` and the image; the Groq and OpenAI-compatible paths against a local fake API |
 | Live integration (opt-in) | `backend/tests/integration` | 11 | Brief scenarios against the real model; skipped unless `RUN_LIVE_LLM=1` |
-| Frontend | `frontend/src` (9 files) | 67 | SSE parser, API client, storage, CSV, history, status pill, step tracker, SQL panel, app flows |
-| **Total** | | **996** | 918 backend tests pass offline and 11 live tests are skipped by default; 67 frontend tests pass |
+| Frontend | `frontend/src` (11 files) | 76 | SSE parser, API client, storage, CSV, history, status pill, step tracker, SQL and validation panels, answer card, app flows |
+| **Total** | | **1,197** | 1,110 backend tests pass offline and 11 live tests are skipped by default; 76 frontend tests pass |
 
 <!-- TEST_COUNTS_END -->
 
@@ -358,13 +360,16 @@ prompts, and its keyword rules were written to cover the golden guardrail cases
 
 <!-- EVAL_RESULTS_START -->
 Final run: `qwen3.5:9b` on Ollama (MLX), Apple M5 with 16 GB, 38 golden cases (46 agent turns), on 16 Oct 2026.
-Full report with every case and the one failure: [`backend/evals/results/final.md`](backend/evals/results/final.md)
-(saved with `--save-as final`; `latest.md` held the same report until the next run). To reproduce, run `make evals`.
+Full report with every case and the one failure: [`backend/evals/results/latest.md`](backend/evals/results/latest.md)
+(raw data in `latest.json`). The header records the system-prompt version, sha256 `70582795c5e1`, which matches
+the prompts in this repository. The run predates the last review fixes (stricter validator checks, retrieval
+and dialect fixes, a dynamic prompt block for answers to clarification questions); every query from the run
+still passes the current validator, but the evaluation has not been re-run since. To reproduce, run `make evals`.
 
 | Metric | Result |
 |---|---|
 | Execution accuracy (generation + follow-up) | **19/20 (95.0%)** |
-| Held-out execution accuracy (cases not used as few-shot examples) | **17/18 (94.4%)** |
+| Execution accuracy without the brief's two examples, which are also few-shot examples ("held-out" in the report) | **17/18 (94.4%)** |
 | Guardrail compliance (destructive, out-of-scope, injection, ambiguous) | **9/9 (100%)** |
 | Optimize / Debug pass rate | 4/4 (100%) / 5/5 (100%) |
 | Intent classification accuracy | 35/35 (100%) |
@@ -374,15 +379,17 @@ Full report with every case and the one failure: [`backend/evals/results/final.m
 
 **How the prompts were tuned.** The prompt rules were tuned on a separate **dev split**
 ([`backend/evals/dev.json`](backend/evals/dev.json), 21 cases): its execution accuracy rose from 12/15 (80.0%) to
-14/15 (93.3%), measured with an intermediate prompt version (`backend/evals/results/dev/baseline.md` and
-`dev/tuned2.md`). The golden set served as the regression check, so it is not a strictly held-out measurement:
+14/15 (93.3%), measured with an intermediate prompt version (the dev-split reports are not committed; rerun them
+with `make evals ARGS="--golden evals/dev.json --out-dir evals/results/dev"`). The golden set served as the
+regression check, so it is not a strictly held-out measurement:
 
-- The first golden run after tuning (`backend/evals/results/tuned_v1.md`) lost one optimize case: a correlated
-  subquery rewritten as an INNER JOIN, which drops the customers without orders. The prompts were revised once
-  more before the final run, and the final OPTIMIZE instruction asks to keep every row of the original (a LEFT
-  JOIN with `COUNT(column)` or `COALESCE`), which is the fix for exactly that case.
-- The one golden failure before tuning (`backend/evals/results/baseline.md`) was an added job-title filter; the
-  tuned SQL rules forbid conditions the user did not ask for, naming job titles among them.
+- The first golden run after tuning lost one optimize case: a correlated subquery rewritten as an INNER JOIN,
+  which drops the customers without orders. The prompts were revised once more before the final run, and the
+  final OPTIMIZE instruction asks to keep every row of the original (a LEFT JOIN with `COUNT(column)` or
+  `COALESCE`), which is the fix for exactly that case.
+- The one golden failure before tuning ([`backend/evals/results/baseline.md`](backend/evals/results/baseline.md))
+  was an added job-title filter; the tuned SQL rules forbid conditions the user did not ask for, naming job
+  titles among them.
 - The golden score ended where it started (37/38), with a different failing case: `gen_manager_direct_reports`
   instead of `gen_top3_employees_software_units`. The final prompts were not re-run on the dev split.
 <!-- EVAL_RESULTS_END -->
@@ -438,8 +445,8 @@ What makes it fast enough:
 │   │   └── guardrails/          input guard (injection, destructive SQL, sanitization)
 │   ├── evals/                   golden set, runner, scoring, reports
 │   ├── scripts/                 export_graph.py, export_prompts.py
-│   ├── tests/                   core, agent, api, evals, security (red team), integration (live, opt-in)
-│   ├── requirements.txt, requirements-dev.txt, pyproject.toml
+│   ├── tests/                   core, agent, api, evals, security (red team), deploy, integration (live, opt-in)
+│   ├── requirements.txt, requirements-dev.txt, constraints.txt (pinned versions), pyproject.toml
 │   └── data/                    company.db (generated, gitignored)
 ├── frontend/
 │   └── src/                     App, components (chat, inspector panels), hooks, lib (SSE client, storage, CSV)
