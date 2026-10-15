@@ -104,7 +104,12 @@ def _warmup_status(request: Request) -> str:
         return "warming"
     if task.cancelled() or task.exception() is not None:
         return "failed"
-    return "ready" if task.result() else "skipped"
+    if task.result():
+        return "ready"
+    # The warm-up returns False both when it does not apply and when the local server could not be reached.
+    settings = getattr(request.app.state, "settings", None)
+    applicable = settings is not None and settings.llm_provider == "ollama" and settings.llm_warmup
+    return "failed" if applicable else "skipped"
 
 
 @router.head("/health", include_in_schema=False)

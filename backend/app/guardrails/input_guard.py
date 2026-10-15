@@ -82,6 +82,8 @@ _TAG = re.compile(
 _BLANK_RUN = re.compile(r"\n(?:[ \t]*\n){4,}")
 _SQL_START = re.compile(r"\b(?:SELECT\b|WITH\s+(?:RECURSIVE\s+)?\w+\s*(?:\([^)]*\))?\s+AS\s*\()", re.IGNORECASE)
 _STATEMENT_END = re.compile(r"\n[ \t]*\n")
+_INLINE_CODE = re.compile(r"(?<!`)`([^`\n]+)`(?!`)")
+_WRAPPING_QUOTES = {'"': '"', "'": "'", "“": "”", "‘": "’", "«": "»"}
 
 
 @dataclass
@@ -139,17 +141,27 @@ def check_input(text: str, *, max_chars: int = 2000) -> GuardResult:
 
 
 def extract_sql(text: str) -> str | None:
-    """SQL pasted into a message: a fenced code block, else the first ``SELECT``/``WITH ... AS (`` statement
-    up to a blank line or the end of the text; ``None`` if there is none."""
+    """SQL pasted into a message: a fenced code block, else inline code (`SELECT ...`), else the first
+    ``SELECT``/``WITH ... AS (`` statement up to a blank line or the end of the text (without the quotes
+    around it, as in "SELECT ..."); ``None`` if there is none."""
     for block in fenced_blocks(text):
         if block:
             return re.sub(r"[\s;]+$", "", block) or None
+    for span in _INLINE_CODE.findall(text):
+        if _SQL_START.match(span.strip()):
+            return re.sub(r"[\s;]+$", "", span.strip()) or None
     start = _SQL_START.search(text)
     if start is None:
         return None
     rest = text[start.start():]
     end = _STATEMENT_END.search(rest)
     statement = rest[: end.start()] if end else rest
+    closer = _WRAPPING_QUOTES.get(text[start.start() - 1]) if start.start() else None
+    if closer and closer in statement:
+        inside = statement[: statement.rindex(closer)]
+        # Cut at the closing quote only if that leaves the SQL's own quotes balanced ('Texas' stays intact).
+        if closer not in "'\"" or inside.count(closer) % 2 == 0:
+            statement = inside
     return re.sub(r"[\s;]+$", "", statement.strip()) or None
 
 

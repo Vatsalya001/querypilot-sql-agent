@@ -347,6 +347,64 @@ def _unquoted_date_errors(text: str, dialect: str) -> list[str]:
     return _dedupe(errors)
 
 
+_TEXT_RESULTS = (exp.TimeToStr, exp.Substring, exp.Upper, exp.Lower, exp.Trim, exp.Replace, exp.DPipe)
+_TEXT_RESULT_FUNCTIONS = frozenset({"strftime", "substr", "printf", "format", "ltrim", "rtrim", "char", "hex", "quote"})
+_DATE_RESULT_FUNCTIONS = frozenset({"datetime", "time"})
+
+
+def _text_result(node: exp.Expression) -> str | None:
+    """``"date"`` for date()/datetime()/time(), ``"text"`` for other expressions that always return text."""
+    if isinstance(node, exp.Date):
+        return "date"
+    if isinstance(node, exp.Anonymous):
+        name = node.name.lower()
+        return "date" if name in _DATE_RESULT_FUNCTIONS else "text" if name in _TEXT_RESULT_FUNCTIONS else None
+    return "text" if isinstance(node, _TEXT_RESULTS) else None
+
+
+def _is_number(node: exp.Expression | None) -> bool:
+    node = node.this if isinstance(node, exp.Neg) else node
+    return isinstance(node, exp.Literal) and not node.is_string
+
+
+def _text_number_errors(tree: exp.Expression) -> list[str]:
+    """Errors for text compared with a number literal, such as ``strftime('%Y', OrderDate) = 2024``.
+
+    A function result has no type affinity, so SQLite compares it as text: text never equals a number and
+    always sorts after one. The query runs without any error but the condition is always true or always false
+    (0 rows instead of 494 for the example). Columns are fine (their TEXT affinity converts the number).
+    """
+    errors: list[str] = []
+    comparisons = (exp.EQ, exp.NEQ, exp.GT, exp.GTE, exp.LT, exp.LTE, exp.In, exp.Between)
+    for node in tree.find_all(*comparisons):
+        if isinstance(node, exp.In):
+            subject = node.this if node.args.get("query") is None else None
+            numbers = [value for value in node.expressions if _is_number(value)]
+        elif isinstance(node, exp.Between):
+            subject, numbers = node.this, [v for v in (node.args.get("low"), node.args.get("high")) if _is_number(v)]
+        elif _text_result(node.this) and _is_number(node.expression):
+            subject, numbers = node.this, [node.expression]
+        else:
+            subject, numbers = node.expression, [node.this] if _is_number(node.this) else []
+        kind = _text_result(subject) if subject is not None else None
+        if kind is None or not numbers:
+            continue
+        written, function = render(node, "sqlite"), render(subject, "sqlite")
+        label = "the || operator" if isinstance(subject, exp.DPipe) else f"{function.split('(')[0].lower()}()"
+        problem = (f"{written} compares {'a date' if kind == 'date' else 'text'} with a number: {label} returns "
+                   "text, and in SQLite text never equals a number (it always sorts after numbers), so the condition "
+                   "is always true or always false.")
+        if kind == "date":
+            errors.append(f"{problem} Write dates as quoted text, e.g. '2024-01-01'.")
+            continue
+        fixed = node.copy()
+        target = fixed.this if fixed.this == subject else fixed.expression
+        target.replace(exp.cast(target.copy(), "INTEGER"))
+        errors.append(f"{problem} Compare numbers with numbers, e.g. {render(fixed, 'sqlite')}, or text with "
+                      "quoted text.")
+    return _dedupe(errors)
+
+
 def _read_only_findings(statements: list[exp.Expression], text: str, dialect: str) -> _ReadOnlyFindings:
     findings = _ReadOnlyFindings()
     for statement in statements:
@@ -755,6 +813,11 @@ class _Validation:
             self.tree = self.statements[0]
             self.normalized = render(self.tree, "sqlite")
         dates = _unquoted_date_errors(self.text, self.dialect)
+        if self.tree is not None:
+            try:
+                dates += _text_number_errors(self.semantic_tree())
+            except Exception:  # noqa: BLE001 - a correctness hint, not a safety check: never reject a query over it
+                logger.exception("Text/number comparison check failed")
         if dates:  # parses, but silently compares against a number: an error, yet not fatal for later checks
             self.add("syntax", False, dates[0], dates)
             return

@@ -675,7 +675,7 @@ Static analysis findings:
 </findings>
 
 <task>
-OPTIMIZE: rewrite the SQL in <user_sql> as a semantically equivalent query (same rows and the same result columns; keep SELECT * as written, the column list is filled in automatically) that is more readable and efficient: sargable range predicates instead of functions on columns, explicit JOINs, no unnecessary joins (remove one only if the results stay identical). Keep every row of the original: when a subquery becomes a join, use a LEFT JOIN (with COUNT(column) or COALESCE) wherever the original keeps rows that have no match. Keep its ORDER BY and LIMIT, and never add sorting, limits or filters. In changes, list each change you actually made (one short phrase each). In suggestions, copy the CREATE INDEX statements from the findings (never invent other indexes) and add at most two other short tips.
+OPTIMIZE: rewrite the SQL in <user_sql> as a semantically equivalent query (same rows and the same result columns; keep SELECT * as written, the column list is filled in automatically) that is more readable and efficient: sargable range predicates instead of functions on columns, explicit JOINs, no unnecessary joins (remove one only if the results stay identical). Keep every row of the original: when a subquery becomes a join, use a LEFT JOIN (with COUNT(column) or COALESCE) wherever the original keeps rows that have no match. Keep its ORDER BY and LIMIT, and never add sorting, limits or filters. Keep WHERE conditions in the WHERE clause; do not move them into JOIN ... ON. In changes, list each change you actually made (one short phrase each). In suggestions, copy the CREATE INDEX statements from the findings (never invent other indexes) and add at most two other short tips.
 </task>
 
 <user_message>
@@ -983,6 +983,12 @@ Outcome with the mock model: intent `schema_info`, status `answered`, 0 SQL gene
 GENERATE: write one new query that answers the user message. Use the conversation only to resolve references such as "them" or "those". Leave changes and issues empty.
 ```
 
+`CLARIFIED_INSTRUCTIONS`
+
+```text
+GENERATE: your previous reply asked a clarification question about the request in <clarified_request>. If the user message answers it, write one new query for that request as completed by the answer, keeping everything the request asked for; if it is a new question, answer it alone. Leave changes and issues empty.
+```
+
 `MODIFY_INSTRUCTIONS`
 
 ```text
@@ -992,7 +998,7 @@ MODIFY: apply the user's requested change to the query in <previous_sql>. Change
 `OPTIMIZE_INSTRUCTIONS`
 
 ```text
-OPTIMIZE: rewrite the SQL in <user_sql> as a semantically equivalent query (same rows and the same result columns; keep SELECT * as written, the column list is filled in automatically) that is more readable and efficient: sargable range predicates instead of functions on columns, explicit JOINs, no unnecessary joins (remove one only if the results stay identical). Keep every row of the original: when a subquery becomes a join, use a LEFT JOIN (with COUNT(column) or COALESCE) wherever the original keeps rows that have no match. Keep its ORDER BY and LIMIT, and never add sorting, limits or filters. In changes, list each change you actually made (one short phrase each). In suggestions, copy the CREATE INDEX statements from the findings (never invent other indexes) and add at most two other short tips.
+OPTIMIZE: rewrite the SQL in <user_sql> as a semantically equivalent query (same rows and the same result columns; keep SELECT * as written, the column list is filled in automatically) that is more readable and efficient: sargable range predicates instead of functions on columns, explicit JOINs, no unnecessary joins (remove one only if the results stay identical). Keep every row of the original: when a subquery becomes a join, use a LEFT JOIN (with COUNT(column) or COALESCE) wherever the original keeps rows that have no match. Keep its ORDER BY and LIMIT, and never add sorting, limits or filters. Keep WHERE conditions in the WHERE clause; do not move them into JOIN ... ON. In changes, list each change you actually made (one short phrase each). In suggestions, copy the CREATE INDEX statements from the findings (never invent other indexes) and add at most two other short tips.
 ```
 
 `DEBUG_INSTRUCTIONS`
@@ -1069,7 +1075,7 @@ Message builders, with example arguments:
 | `destructive_message(['DELETE'])` | I can't run DELETE statements. I only generate read-only queries (SELECT), so the data and schema are never changed. If it helps, I can preview the affected rows with a SELECT query instead; just ask, for example, "Show the rows that would be affected". |
 | `destructive_message(['UPDATE', 'DROP'])` | I can't run UPDATE or DROP statements. I only generate read-only queries (SELECT), so the data and schema are never changed. If it helps, I can preview the affected rows with a SELECT query instead; just ask, for example, "Show the rows that would be affected". |
 | `destructive_message([])` | I can't modify data or the database structure. I only generate read-only queries (SELECT), so the data and schema are never changed. If it helps, I can preview the affected rows with a SELECT query instead; just ask, for example, "Show the rows that would be affected". |
-| `failure_message(["Unknown column 'Region' in table Customers. Did you mean 'State'?"])` | I couldn't produce a valid SQL query for this request, even after automatic repair. Remaining problems: Unknown column 'Region' in table Customers. Did you mean 'State'?. Try rephrasing the question or naming the tables and columns you need. |
+| `failure_message(["Unknown column 'Region' in table Customers. Did you mean 'State'?"])` | I couldn't produce a valid SQL query for this request, even after automatic repair. Remaining problems: Unknown column 'Region' in table Customers. Did you mean 'State'? Try rephrasing the question or naming the tables and columns you need. |
 | `missing_sql_message('optimize_sql')` | Please paste the SQL query you'd like me to optimize. |
 | `missing_sql_message('explain_sql')` | Please paste the SQL query you'd like me to explain. |
 

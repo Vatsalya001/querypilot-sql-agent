@@ -39,10 +39,8 @@ SERVER_DOWN = "The local model server (Ollama) is not running."
 @pytest.fixture(scope="module")
 def settings(tmp_path_factory: pytest.TempPathFactory, db_path: Path) -> Settings:
     """Mock-LLM settings on the session's sample database (``db_path`` from tests/conftest.py)."""
-    try:
-        import app.agent.mock_llm  # noqa: F401
-    except ImportError as exc:
-        pytest.skip(f"the offline MockGateway (app.agent.mock_llm) is not importable yet: {exc}")
+    import app.agent.mock_llm  # noqa: F401  (a broken mock gateway must fail these tests, not skip them)
+
     return make_settings(
         tmp_path_factory.mktemp("full_stack"), llm_provider="mock", database_path=str(db_path)
     )

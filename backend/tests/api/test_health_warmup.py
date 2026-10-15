@@ -43,3 +43,18 @@ async def test_warmup_status_skipped_and_failed() -> None:
     with contextlib.suppress(RuntimeError):
         await failed
     assert _warmup_status(_request(warmup_task=failed)) == "failed"
+
+
+async def test_an_unreachable_local_model_is_reported_as_failed_not_skipped() -> None:
+    # docs/API.md: "skipped" means not applicable (hosted provider, mock, LLM_WARMUP=false). The Ollama warm-up
+    # returns False when the server is unreachable, which used to be reported as "skipped" too.
+    async def unreachable() -> bool:
+        return False
+
+    task = asyncio.create_task(unreachable())
+    await task
+    ollama = SimpleNamespace(llm_provider="ollama", llm_warmup=True)
+    assert _warmup_status(_request(warmup_task=task, settings=ollama)) == "failed"
+    for settings in (SimpleNamespace(llm_provider="groq", llm_warmup=True),
+                     SimpleNamespace(llm_provider="ollama", llm_warmup=False)):
+        assert _warmup_status(_request(warmup_task=task, settings=settings)) == "skipped"

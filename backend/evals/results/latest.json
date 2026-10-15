@@ -13,12 +13,12 @@
       "fallbacks": 0,
       "samples": []
     },
-    "database": "/Users/vatsalyaroy/Desktop/unify_apps_fdse_assignment/backend/data/company.db",
+    "database": "data/company.db",
     "database_unchanged": true,
     "prompts_sha256": "70582795c5e1f795ce49b41bf3ee24160380fccf12264b1d5eb47fa2e6c6086b",
     "max_sql_attempts": 3,
     "golden": {
-      "path": "/Users/vatsalyaroy/Desktop/unify_apps_fdse_assignment/backend/evals/golden.json",
+      "path": "evals/golden.json",
       "version": 1,
       "sha256": "09692ddd527c9636235bb25cd7120f09172254901babf4cf00c1402cd79bd636",
       "cases_total": 38,

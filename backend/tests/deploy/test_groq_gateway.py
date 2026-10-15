@@ -243,6 +243,26 @@ async def test_a_failed_tool_call_does_not_disable_tool_calling(fake_api: FakeCh
     assert [request.kind for request in fake_api.requests[3:]] == ["json_schema", "tools"]
 
 
+async def test_model_output_quoted_in_a_failed_generation_is_not_read_as_a_missing_model(
+    fake_api: FakeChatAPI,
+) -> None:
+    # Groq quotes the bad output in `failed_generation`; text like "model ... not found" in there is the
+    # model's own words, not a provider message about LLM_MODEL.
+    quoted = error(
+        400,
+        "Generated JSON does not match the expected schema. Please adjust your prompt. See 'failed_generation' "
+        "for more details.",
+        "json_validate_failed",
+        failed_generation='{"status": "cannot_answer", "summary": "The model column was not found in Products"}',
+    )
+    fake_api.queue(quoted, lambda request: structured(request, GENERATION))
+
+    result = await gateway(llm_fallback_models="").generate_sql(MESSAGES)
+
+    assert result.sql == GENERATION["sql"]
+    assert [request.kind for request in fake_api.requests] == ["json_schema", "tools"]
+
+
 async def test_api_key_pasted_with_surrounding_whitespace_still_works(fake_api: FakeChatAPI) -> None:
     # A key copied with a trailing newline must not turn into an illegal HTTP header (which surfaced as
     # "Could not reach the groq API" while /api/health reported the provider as configured).

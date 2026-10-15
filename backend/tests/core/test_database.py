@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from app.db.database import connect_readonly, ensure_database
+from app.db.database import APPLICATION_ID, connect_readonly, ensure_database
 
 TABLES = ("Departments", "Employees", "Customers", "Products", "Orders", "OrderItems", "Payments")
 
@@ -53,9 +53,13 @@ def test_ensure_database_is_idempotent_and_resettable(tmp_path: Path) -> None:
 
 
 def test_outdated_database_is_rebuilt(tmp_path: Path) -> None:
+    # A stale QueryPilot sample database (carries our application_id marker, old content version) is
+    # rebuilt; files without the marker belong to someone else and are never touched (test_database_foreign).
     path = tmp_path / "stale.db"
     conn = sqlite3.connect(path)
     conn.execute("CREATE TABLE Leftover (x INTEGER)")
+    conn.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+    conn.execute("PRAGMA user_version = 1")
     conn.commit()
     conn.close()
     ensure_database(path)

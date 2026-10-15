@@ -20,11 +20,23 @@ backend/data/*.db
 backend/data/*.db-journal
 backend/data/*.db-wal
 backend/data/*.db-shm
-# Eval runs: keep only the published reports (README links to latest.md); scratch runs stay local.
+# Eval runs: publish the final per-provider reports and the pre-tuning baseline (evals/REPORT.md links to
+# them); scratch and in-progress runs (latest.*, tuning runs) stay local.
 backend/evals/results/*
-!backend/evals/results/latest.md
-!backend/evals/results/latest.json
 !backend/evals/results/baseline.md
+!backend/evals/results/baseline.json
+!backend/evals/results/ollama/
+!backend/evals/results/groq/
+backend/evals/results/ollama/*
+backend/evals/results/groq/*
+!backend/evals/results/ollama/final.*
+!backend/evals/results/groq/final.*
+!backend/evals/results/ollama/dev/
+!backend/evals/results/groq/dev/
+backend/evals/results/ollama/dev/*
+backend/evals/results/groq/dev/*
+!backend/evals/results/ollama/dev/final.*
+!backend/evals/results/groq/dev/final.*
 
 # --- Node / frontend ---
 node_modules/
