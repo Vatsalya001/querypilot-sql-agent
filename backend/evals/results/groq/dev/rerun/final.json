@@ -1,0 +1,176 @@
+{
+  "meta": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "fast_model": "openai/gpt-oss-20b",
+    "started_at": "2026-10-16T02:10:15+05:30",
+    "duration_s": 3.8,
+    "warmup_s": null,
+    "agent_turns": 2,
+    "llm_calls": 6,
+    "structured_output": {
+      "recovered": 0,
+      "fallbacks": 0,
+      "samples": []
+    },
+    "database": "data/company.db",
+    "database_unchanged": true,
+    "prompts_sha256": "41aea344629a4de3e0200c5c33838aa1e52685402cc8698d0f7411c68f3952e3",
+    "max_sql_attempts": 3,
+    "golden": {
+      "path": "evals/dev.json",
+      "version": 1,
+      "sha256": "45a6a6b5e675eee876f9e61d5489c519b79f339ee3297fe14fe39b5deb2c7f84",
+      "cases_total": 21,
+      "cases_run": 1,
+      "filters": {
+        "category": [],
+        "case": [
+          "dev_fu_group_by_month"
+        ],
+        "limit": null
+      }
+    }
+  },
+  "summary": {
+    "overall": {
+      "cases": 1,
+      "passed": 1,
+      "accuracy": 1.0
+    },
+    "categories": {
+      "follow_up": {
+        "cases": 1,
+        "passed": 1,
+        "accuracy": 1.0,
+        "avg_latency_s": 3.8,
+        "avg_turn_latency_s": 1.9
+      }
+    },
+    "execution_accuracy": {
+      "cases": 1,
+      "passed": 1,
+      "accuracy": 1.0
+    },
+    "held_out_execution_accuracy": {
+      "cases": 1,
+      "passed": 1,
+      "accuracy": 1.0
+    },
+    "debug_explanations": {
+      "cases": 0,
+      "passed": 0,
+      "accuracy": null
+    },
+    "guardrail_compliance": {
+      "cases": 0,
+      "passed": 0,
+      "accuracy": null
+    },
+    "intent_accuracy": {
+      "cases": 1,
+      "passed": 1,
+      "accuracy": 1.0
+    },
+    "latency": {
+      "turns": 2,
+      "llm_turns": 2,
+      "avg_turn_s": 1.9,
+      "avg_llm_turn_s": 1.9,
+      "p50_llm_turn_s": 2.0,
+      "p90_llm_turn_s": 2.0,
+      "max_turn_s": 2.0,
+      "avg_node_s": {
+        "detect_intent": 0.68,
+        "generate_sql": 0.64,
+        "explain_sql": 0.56
+      }
+    },
+    "agent_errors": 0
+  },
+  "cases": [
+    {
+      "id": "dev_fu_group_by_month",
+      "category": "follow_up",
+      "tags": [
+        "aggregate",
+        "date_parts"
+      ],
+      "prompt_example": false,
+      "question": "Group them by month and count them.",
+      "passed": true,
+      "reason": "match (+1 extra column)",
+      "checks": {
+        "status": "success",
+        "rows": 12,
+        "expected_rows": 12,
+        "result_match": true
+      },
+      "status": "success",
+      "expected_status": "success",
+      "intent": "modify_sql",
+      "expected_intent": "modify_sql",
+      "intent_ok": true,
+      "attempts": 1,
+      "latency_s": 3.802,
+      "sql": "SELECT\n  STRFTIME('%Y-%m', OrderDate) AS Month,\n  COUNT(*) AS OrderCount\nFROM Orders\nWHERE\n  OrderDate >= '2025-01-01' AND OrderDate < '2026-01-01'\nGROUP BY\n  Month\nORDER BY\n  Month",
+      "reference_sql": "SELECT COUNT(*) AS Orders FROM Orders WHERE OrderDate >= '2025-01-01' AND OrderDate < '2026-01-01' GROUP BY strftime('%Y-%m', OrderDate)",
+      "message": "Counts of orders per month in 2025. It returned 12 rows.",
+      "issues": [],
+      "changes": [
+        "Replaced * with month extraction and count",
+        "Added GROUP BY month",
+        "Added ORDER BY month"
+      ],
+      "suggestions": [],
+      "assumptions": [],
+      "error": null,
+      "turns": [
+        {
+          "message": "Show the orders placed in 2025.",
+          "latency_s": 1.803,
+          "status": "success",
+          "intent": "generate_sql",
+          "sql": "SELECT\n  *\nFROM Orders\nWHERE\n  OrderDate >= '2025-01-01' AND OrderDate < '2026-01-01'",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.0,
+            "detect_intent": 649.1,
+            "validate_scope": 0.0,
+            "retrieve_schema": 1.9,
+            "generate_sql": 600.4,
+            "validate_sql": 3.9,
+            "optimize_sql": 0.5,
+            "execute_sql": 4.2,
+            "explain_sql": 531.5,
+            "respond": 0.0
+          },
+          "llm_calls": 3
+        },
+        {
+          "message": "Group them by month and count them.",
+          "latency_s": 1.999,
+          "status": "success",
+          "intent": "modify_sql",
+          "sql": "SELECT\n  STRFTIME('%Y-%m', OrderDate) AS Month,\n  COUNT(*) AS OrderCount\nFROM Orders\nWHERE\n  OrderDate >= '2025-01-01' AND OrderDate < '2026-01-01'\nGROUP BY\n  Month\nORDER BY\n  Month",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.1,
+            "detect_intent": 715.1,
+            "validate_scope": 0.0,
+            "retrieve_schema": 0.8,
+            "generate_sql": 682.8,
+            "validate_sql": 4.1,
+            "optimize_sql": 0.8,
+            "execute_sql": 6.1,
+            "explain_sql": 578.6,
+            "respond": 0.0
+          },
+          "llm_calls": 3
+        }
+      ]
+    }
+  ]
+}

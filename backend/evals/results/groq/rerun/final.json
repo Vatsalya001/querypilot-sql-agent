@@ -1,0 +1,407 @@
+{
+  "meta": {
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "fast_model": "openai/gpt-oss-20b",
+    "started_at": "2026-10-16T02:09:31+05:30",
+    "duration_s": 13.6,
+    "warmup_s": null,
+    "agent_turns": 6,
+    "llm_calls": 18,
+    "structured_output": {
+      "recovered": 0,
+      "fallbacks": 0,
+      "samples": []
+    },
+    "database": "data/company.db",
+    "database_unchanged": true,
+    "prompts_sha256": "41aea344629a4de3e0200c5c33838aa1e52685402cc8698d0f7411c68f3952e3",
+    "max_sql_attempts": 3,
+    "golden": {
+      "path": "evals/golden.json",
+      "version": 1,
+      "sha256": "09692ddd527c9636235bb25cd7120f09172254901babf4cf00c1402cd79bd636",
+      "cases_total": 38,
+      "cases_run": 4,
+      "filters": {
+        "category": [],
+        "case": [
+          "dbg_wrong_join_key",
+          "fu_furniture_top3",
+          "gen_top5_customers_delivered",
+          "opt_not_in_subquery"
+        ],
+        "limit": null
+      }
+    }
+  },
+  "summary": {
+    "overall": {
+      "cases": 4,
+      "passed": 4,
+      "accuracy": 1.0
+    },
+    "categories": {
+      "generation": {
+        "cases": 1,
+        "passed": 1,
+        "accuracy": 1.0,
+        "avg_latency_s": 1.89,
+        "avg_turn_latency_s": 1.89
+      },
+      "follow_up": {
+        "cases": 1,
+        "passed": 1,
+        "accuracy": 1.0,
+        "avg_latency_s": 6.72,
+        "avg_turn_latency_s": 2.24
+      },
+      "optimize": {
+        "cases": 1,
+        "passed": 1,
+        "accuracy": 1.0,
+        "avg_latency_s": 2.8,
+        "avg_turn_latency_s": 2.8
+      },
+      "debug": {
+        "cases": 1,
+        "passed": 1,
+        "accuracy": 1.0,
+        "avg_latency_s": 2.15,
+        "avg_turn_latency_s": 2.15
+      }
+    },
+    "execution_accuracy": {
+      "cases": 2,
+      "passed": 2,
+      "accuracy": 1.0
+    },
+    "held_out_execution_accuracy": {
+      "cases": 2,
+      "passed": 2,
+      "accuracy": 1.0
+    },
+    "debug_explanations": {
+      "cases": 1,
+      "passed": 1,
+      "accuracy": 1.0
+    },
+    "guardrail_compliance": {
+      "cases": 0,
+      "passed": 0,
+      "accuracy": null
+    },
+    "intent_accuracy": {
+      "cases": 4,
+      "passed": 4,
+      "accuracy": 1.0
+    },
+    "latency": {
+      "turns": 6,
+      "llm_turns": 6,
+      "avg_turn_s": 2.26,
+      "avg_llm_turn_s": 2.26,
+      "p50_llm_turn_s": 2.15,
+      "p90_llm_turn_s": 2.8,
+      "max_turn_s": 2.8,
+      "avg_node_s": {
+        "detect_intent": 0.62,
+        "generate_sql": 1.0,
+        "explain_sql": 0.6
+      }
+    },
+    "agent_errors": 0
+  },
+  "cases": [
+    {
+      "id": "gen_top5_customers_delivered",
+      "category": "generation",
+      "tags": [
+        "top_n",
+        "join_2"
+      ],
+      "prompt_example": false,
+      "question": "Who are the top 5 customers by total amount spent on delivered orders, and how much did each spend?",
+      "passed": true,
+      "reason": "match (+1 extra column)",
+      "checks": {
+        "status": "success",
+        "rows": 5,
+        "expected_rows": 5,
+        "result_match": true
+      },
+      "status": "success",
+      "expected_status": "success",
+      "intent": "generate_sql",
+      "expected_intent": "generate_sql",
+      "intent_ok": true,
+      "attempts": 1,
+      "latency_s": 1.889,
+      "sql": "SELECT\n  c.CustomerID,\n  c.FirstName,\n  c.LastName,\n  ROUND(SUM(o.TotalAmount), 2) AS TotalSpent\nFROM Orders AS o\nJOIN Customers AS c\n  ON c.CustomerID = o.CustomerID\nWHERE\n  o.Status = 'Delivered'\nGROUP BY\n  c.CustomerID,\n  c.FirstName,\n  c.LastName\nORDER BY\n  TotalSpent DESC\nLIMIT 5",
+      "reference_sql": "SELECT c.FirstName, c.LastName, ROUND(SUM(o.TotalAmount), 2) AS TotalSpent FROM Customers AS c JOIN Orders AS o ON o.CustomerID = c.CustomerID WHERE o.Status = 'Delivered' GROUP BY c.CustomerID, c.FirstName, c.LastName ORDER BY TotalSpent DESC LIMIT 5",
+      "message": "Top 5 customers by total spent on delivered orders. It returned 5 rows.",
+      "issues": [],
+      "changes": [],
+      "suggestions": [],
+      "assumptions": [],
+      "error": null,
+      "turns": [
+        {
+          "message": "Who are the top 5 customers by total amount spent on delivered orders, and how much did each spend?",
+          "latency_s": 1.889,
+          "status": "success",
+          "intent": "generate_sql",
+          "sql": "SELECT\n  c.CustomerID,\n  c.FirstName,\n  c.LastName,\n  ROUND(SUM(o.TotalAmount), 2) AS TotalSpent\nFROM Orders AS o\nJOIN Customers AS c\n  ON c.CustomerID = o.CustomerID\nWHERE\n  o.Status = 'Delivered'\nGROUP BY\n  c.CustomerID,\n  c.FirstName,\n  c.LastName\nORDER BY\n  TotalSpent DESC\nLIMIT 5",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.0,
+            "detect_intent": 684.0,
+            "validate_scope": 0.0,
+            "retrieve_schema": 4.2,
+            "generate_sql": 551.4,
+            "validate_sql": 9.7,
+            "optimize_sql": 1.6,
+            "execute_sql": 5.8,
+            "explain_sql": 619.0,
+            "respond": 0.1
+          },
+          "llm_calls": 3
+        }
+      ]
+    },
+    {
+      "id": "fu_furniture_top3",
+      "category": "follow_up",
+      "tags": [
+        "add_sort",
+        "add_limit",
+        "three_turns"
+      ],
+      "prompt_example": false,
+      "question": "Only show the top 3.",
+      "passed": true,
+      "reason": "match (+6 extra columns)",
+      "checks": {
+        "status": "success",
+        "rows": 3,
+        "expected_rows": 3,
+        "result_match": true
+      },
+      "status": "success",
+      "expected_status": "success",
+      "intent": "modify_sql",
+      "expected_intent": "modify_sql",
+      "intent_ok": true,
+      "attempts": 1,
+      "latency_s": 6.719,
+      "sql": "SELECT\n  *\nFROM Products\nWHERE\n  Category = 'Furniture'\nORDER BY\n  UnitPrice DESC\nLIMIT 3",
+      "reference_sql": "SELECT ProductName FROM Products WHERE Category = 'Furniture' ORDER BY UnitPrice DESC LIMIT 3",
+      "message": "Top 3 most expensive furniture products. It returned 3 rows.",
+      "issues": [],
+      "changes": [
+        "Added LIMIT 3 to return only the top 3 rows"
+      ],
+      "suggestions": [],
+      "assumptions": [],
+      "error": null,
+      "turns": [
+        {
+          "message": "List the products in the Furniture category.",
+          "latency_s": 1.911,
+          "status": "success",
+          "intent": "generate_sql",
+          "sql": "SELECT\n  *\nFROM Products\nWHERE\n  Category = 'Furniture'",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.1,
+            "detect_intent": 578.1,
+            "validate_scope": 0.0,
+            "retrieve_schema": 0.8,
+            "generate_sql": 695.7,
+            "validate_sql": 4.7,
+            "optimize_sql": 0.8,
+            "execute_sql": 2.9,
+            "explain_sql": 613.2,
+            "respond": 0.1
+          },
+          "llm_calls": 3
+        },
+        {
+          "message": "Sort them by price, most expensive first.",
+          "latency_s": 2.077,
+          "status": "success",
+          "intent": "modify_sql",
+          "sql": "SELECT\n  *\nFROM Products\nWHERE\n  Category = 'Furniture'\nORDER BY\n  UnitPrice DESC",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.1,
+            "detect_intent": 507.1,
+            "validate_scope": 0.0,
+            "retrieve_schema": 1.4,
+            "generate_sql": 1018.9,
+            "validate_sql": 4.2,
+            "optimize_sql": 0.8,
+            "execute_sql": 2.7,
+            "explain_sql": 526.5,
+            "respond": 0.1
+          },
+          "llm_calls": 3
+        },
+        {
+          "message": "Only show the top 3.",
+          "latency_s": 2.73,
+          "status": "success",
+          "intent": "modify_sql",
+          "sql": "SELECT\n  *\nFROM Products\nWHERE\n  Category = 'Furniture'\nORDER BY\n  UnitPrice DESC\nLIMIT 3",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.1,
+            "detect_intent": 578.5,
+            "validate_scope": 0.0,
+            "retrieve_schema": 0.9,
+            "generate_sql": 1224.3,
+            "validate_sql": 3.9,
+            "optimize_sql": 0.6,
+            "execute_sql": 2.4,
+            "explain_sql": 904.3,
+            "respond": 0.0
+          },
+          "llm_calls": 3
+        }
+      ]
+    },
+    {
+      "id": "opt_not_in_subquery",
+      "category": "optimize",
+      "tags": [
+        "not_in",
+        "anti_join"
+      ],
+      "prompt_example": false,
+      "question": "This query is slow. Can you make it faster? SELECT FirstName, LastName FROM Customers WHERE CustomerID NOT IN (SELECT CustomerID FROM Orders)",
+      "passed": true,
+      "reason": "equivalent rewrite; 2 changes, 0 suggestions",
+      "checks": {
+        "status": "success",
+        "changes": 2,
+        "suggestions": 0,
+        "index_recommendations": 0,
+        "rows": 42,
+        "expected_rows": 42,
+        "result_match": true
+      },
+      "status": "success",
+      "expected_status": "success",
+      "intent": "optimize_sql",
+      "expected_intent": "optimize_sql",
+      "intent_ok": true,
+      "attempts": 1,
+      "latency_s": 2.801,
+      "sql": "SELECT\n  c.FirstName,\n  c.LastName\nFROM Customers AS c\nWHERE\n  NOT EXISTS(\n    SELECT\n      1\n    FROM Orders AS o\n    WHERE\n      o.CustomerID = c.CustomerID\n  )",
+      "reference_sql": "SELECT FirstName, LastName FROM Customers WHERE CustomerID NOT IN (SELECT CustomerID FROM Orders)",
+      "message": "Customers without any orders. It returned 42 rows.",
+      "issues": [],
+      "changes": [
+        "Replaced NOT IN subquery with NOT EXISTS correlated subquery",
+        "Removed unnecessary subquery list"
+      ],
+      "suggestions": [],
+      "assumptions": [],
+      "error": null,
+      "turns": [
+        {
+          "message": "This query is slow. Can you make it faster? SELECT FirstName, LastName FROM Customers WHERE CustomerID NOT IN (SELECT CustomerID FROM Orders)",
+          "latency_s": 2.801,
+          "status": "success",
+          "intent": "optimize_sql",
+          "sql": "SELECT\n  c.FirstName,\n  c.LastName\nFROM Customers AS c\nWHERE\n  NOT EXISTS(\n    SELECT\n      1\n    FROM Orders AS o\n    WHERE\n      o.CustomerID = c.CustomerID\n  )",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.1,
+            "detect_intent": 821.3,
+            "validate_scope": 0.1,
+            "retrieve_schema": 2.5,
+            "diagnose_sql": 5.3,
+            "generate_sql": 1522.2,
+            "validate_sql": 4.9,
+            "optimize_sql": 1.3,
+            "execute_sql": 3.1,
+            "explain_sql": 425.3,
+            "respond": 0.1
+          },
+          "llm_calls": 3
+        }
+      ]
+    },
+    {
+      "id": "dbg_wrong_join_key",
+      "category": "debug",
+      "tags": [
+        "invalid_join"
+      ],
+      "prompt_example": false,
+      "question": "This query returns nothing for order 42. Can you fix it? SELECT p.ProductName, oi.Quantity FROM OrderItems oi JOIN Products p ON oi.OrderItemID = p.ProductID WHERE oi.OrderID = 42",
+      "passed": true,
+      "reason": "match",
+      "checks": {
+        "status": "success",
+        "issues": 1,
+        "rows": 4,
+        "expected_rows": 4,
+        "result_match": true
+      },
+      "status": "success",
+      "expected_status": "success",
+      "intent": "debug_sql",
+      "expected_intent": "debug_sql",
+      "intent_ok": true,
+      "attempts": 1,
+      "latency_s": 2.153,
+      "sql": "SELECT\n  p.ProductName,\n  oi.Quantity\nFROM OrderItems AS oi\nJOIN Products AS p\n  ON oi.ProductID = p.ProductID\nWHERE\n  oi.OrderID = 42",
+      "reference_sql": "SELECT p.ProductName, oi.Quantity FROM OrderItems AS oi JOIN Products AS p ON p.ProductID = oi.ProductID WHERE oi.OrderID = 42",
+      "message": "Fixed join to correctly link order items with products for order 42. It returned 4 rows.",
+      "issues": [
+        {
+          "problem": "Invalid join: OrderItems.OrderItemID = Products.ProductID",
+          "reason": "OrderItems.OrderItemID is the primary key of the line item, not related to Products. The correct foreign key is OrderItems.ProductID, which references Products.ProductID."
+        }
+      ],
+      "changes": [
+        "Corrected join condition to use OrderItems.ProductID = Products.ProductID"
+      ],
+      "suggestions": [],
+      "assumptions": [],
+      "error": null,
+      "turns": [
+        {
+          "message": "This query returns nothing for order 42. Can you fix it? SELECT p.ProductName, oi.Quantity FROM OrderItems oi JOIN Products p ON oi.OrderItemID = p.ProductID WHERE oi.OrderID = 42",
+          "latency_s": 2.153,
+          "status": "success",
+          "intent": "debug_sql",
+          "sql": "SELECT\n  p.ProductName,\n  oi.Quantity\nFROM OrderItems AS oi\nJOIN Products AS p\n  ON oi.ProductID = p.ProductID\nWHERE\n  oi.OrderID = 42",
+          "attempts": 1,
+          "error": null,
+          "node_ms": {
+            "guard_input": 0.2,
+            "detect_intent": 572.6,
+            "validate_scope": 0.1,
+            "retrieve_schema": 3.1,
+            "diagnose_sql": 5.4,
+            "generate_sql": 1008.5,
+            "validate_sql": 4.8,
+            "optimize_sql": 1.0,
+            "execute_sql": 3.4,
+            "explain_sql": 535.6,
+            "respond": 0.1
+          },
+          "llm_calls": 3
+        }
+      ]
+    }
+  ]
+}

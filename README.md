@@ -6,12 +6,31 @@ guardrails. It runs fully offline on a local 9B model and switches to a free hos
 environment variables alone, with no code changes.
 
 - **Demo video:** TBD - add after recording (shot list: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md))
-- **Live demo:** TBD - add after deploying (guide: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md))
+- **Live demo:** https://querypilot-wucj.onrender.com (interactive API docs: https://querypilot-wucj.onrender.com/api/docs)
+  - No login is needed and the 7-table sample database is built in. Try the prompts under [Try these prompts](#try-these-prompts).
+  - Hosted on Render's free tier with Groq's free API (`openai/gpt-oss-120b`): the first load after 15 minutes of
+    inactivity takes about a minute while the instance wakes up, and each visitor is limited to 10 requests per minute.
 
 ![QueryPilot answering "Top 5 products by total revenue in 2025" with qwen3.5:9b: streamed explanation, highlighted SQL, results, 7/7 validation checks and a low cost estimate](docs/images/querypilot-live-answer.png)
 
 *A live answer from the local model (`qwen3.5:9b` on Ollama): a three-table join with a sargable date range,
 all seven validation checks passed, executed read-only in 3 ms.*
+
+### Submission deliverables
+
+| Deliverable (brief section 8) | Where |
+|---|---|
+| Complete source code | This repository: [`backend/`](backend) (FastAPI + LangGraph agent) and [`frontend/`](frontend) (React UI) |
+| README with setup instructions | [Quick start](#quick-start-macos); deployment guide in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) |
+| Architecture diagram | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| LangGraph workflow explanation | [`docs/WORKFLOW.md`](docs/WORKFLOW.md) |
+| Prompts used | [`docs/PROMPTS.md`](docs/PROMPTS.md) |
+| Sample database schema | [`backend/app/db/schema.sql`](backend/app/db/schema.sql) and [`docs/SCHEMA.md`](docs/SCHEMA.md) |
+| Guardrails | [`docs/GUARDRAILS.md`](docs/GUARDRAILS.md) |
+| Evaluation report | [`backend/evals/REPORT.md`](backend/evals/REPORT.md) |
+| Assumptions | [Assumptions](#assumptions) |
+| Deployed link | https://querypilot-wucj.onrender.com |
+| Demo video | See the link at the top of this README |
 
 ## Contents
 
@@ -352,46 +371,38 @@ smoke test on every push.
 **Evaluation.** [`backend/evals`](backend/evals) holds a golden set of hand-written cases (generation, follow-up,
 debug, optimize and guardrail) with reference SQL. A generated query counts as correct when its result set
 matches the reference query's (execution accuracy); guardrail cases check the status and the exact reply.
-Every run writes `backend/evals/results/latest.md` (and `.json`), overwriting the previous run.
+Each run writes `latest.md` (and `.json`) into its `--out-dir`; final runs are also saved with `--save-as final`, and
+`python -m evals.summarize` builds [`backend/evals/REPORT.md`](backend/evals/REPORT.md) from those files, so no number in it is typed by hand.
 `make evals ARGS="--provider mock --out-dir evals/results/mock"` runs the whole pipeline offline without
 touching those files, but its numbers say nothing about the agent: the rule-based mock only knows the demo
 prompts, and its keyword rules were written to cover the golden guardrail cases
 (`tests/evals/test_mock_guardrails.py` checks that), so it only checks the plumbing.
 
 <!-- EVAL_RESULTS_START -->
-Final run: `qwen3.5:9b` on Ollama (MLX), Apple M5 with 16 GB, 38 golden cases (46 agent turns), on 16 Oct 2026.
-Full report with every case and the one failure: [`backend/evals/results/latest.md`](backend/evals/results/latest.md)
-(raw data in `latest.json`). The header records the system-prompt version, sha256 `70582795c5e1`, which matches
-the prompts in this repository. The run predates the last review fixes (stricter validator checks, retrieval
-and dialect fixes, a dynamic prompt block for answers to clarification questions); every query from the run
-still passes the current validator, but the evaluation has not been re-run since. To reproduce, run `make evals`.
+Final runs on the final code and prompts (prompt version `41aea344629a`) on 16 Oct 2026: the golden set (38 cases) and
+the harder dev split (21 cases), on both the local and the hosted model. The full report, with every failure, is
+[`backend/evals/REPORT.md`](backend/evals/REPORT.md).
 
-| Metric | Result |
-|---|---|
-| Execution accuracy (generation + follow-up) | **19/20 (95.0%)** |
-| Execution accuracy without the brief's two examples, which are also few-shot examples ("held-out" in the report) | **17/18 (94.4%)** |
-| Guardrail compliance (destructive, out-of-scope, injection, ambiguous) | **9/9 (100%)** |
-| Optimize / Debug pass rate | 4/4 (100%) / 5/5 (100%) |
-| Intent classification accuracy | 35/35 (100%) |
-| All cases | **37/38 (97.4%)** |
-| Structured output | 118 LLM calls, 0 JSON fallbacks (tool calling) |
-| Average latency per LLM-backed turn | 16.1 s (p50 15.9 s, p90 26.1 s); intent 4.8 s, SQL 9.8 s, explanation 3.7 s |
+| Metric | Local: `qwen3.5:9b` on Ollama (Apple M5, 16 GB) | Hosted: Groq `openai/gpt-oss-120b` (free tier) |
+|---|---|---|
+| All golden cases | **37/38 (97.4%)** | **34/38 (89.5%)**. All 4 misses were `rate_limited` errors from the free tier's 8,000 tokens/minute limit during the back-to-back run; re-run one at a time, **4/4 passed** |
+| Execution accuracy (generation + follow-up) | **19/20 (95.0%)** | **18/20 (90.0%)**; both misses were rate-limited and passed on re-run |
+| Execution accuracy without the brief's own examples ("held-out") | 17/18 (94.4%) | 16/18 (88.9%) |
+| Guardrail compliance (destructive, out-of-scope, injection, ambiguous) | **9/9 (100%)** | **9/9 (100%)** |
+| Optimize / Debug | 4/4 / 5/5 | 3/4 / 4/5 (the misses were rate-limited; 1/1 and 1/1 on re-run) |
+| Intent accuracy | 35/35 | 31/35 (the 4 rate-limited cases) |
+| Dev split (21 harder cases) | 20/21 (95.2%) | 19/21 (90.5%): 1 wrong-column follow-up, 1 rate-limited (passed on re-run) |
+| Structured output | 0 JSON fallbacks (tool calling) | 0 JSON fallbacks (JSON schema) |
+| Avg LLM-backed turn (p90) | 12.7 s (23.4 s) | 11.3 s (23.1 s) during the burst; 1.9-6.7 s per case when not throttled |
 
-**How the prompts were tuned.** The prompt rules were tuned on a separate **dev split**
-([`backend/evals/dev.json`](backend/evals/dev.json), 21 cases): its execution accuracy rose from 12/15 (80.0%) to
-14/15 (93.3%), measured with an intermediate prompt version (the dev-split reports are not committed; rerun them
-with `make evals ARGS="--golden evals/dev.json --out-dir evals/results/dev"`). The golden set served as the
-regression check, so it is not a strictly held-out measurement:
+The one real local miss (`gen_manager_direct_reports`) returned all 80 employees instead of the 14 managers.
 
-- The first golden run after tuning lost one optimize case: a correlated subquery rewritten as an INNER JOIN,
-  which drops the customers without orders. The prompts were revised once more before the final run, and the
-  final OPTIMIZE instruction asks to keep every row of the original (a LEFT JOIN with `COUNT(column)` or
-  `COALESCE`), which is the fix for exactly that case.
-- The one golden failure before tuning ([`backend/evals/results/baseline.md`](backend/evals/results/baseline.md))
-  was an added job-title filter; the tuned SQL rules forbid conditions the user did not ask for, naming job
-  titles among them.
-- The golden score ended where it started (37/38), with a different failing case: `gen_manager_direct_reports`
-  instead of `gen_top3_employees_software_units`. The final prompts were not re-run on the dev split.
+**How the prompts were tuned.** Prompt rules were tuned by inspecting failures on the dev split (execution accuracy
+rose from 12/15 to 14/15 at the time); the golden set served as the regression check, so neither set is strictly held
+out. One optimize rule (keep every row when a subquery becomes a join) was added after a golden-set regression, and a
+rule that keeps WHERE filters out of JOIN conditions came from manual testing. The few-shot examples contain only the
+brief's own examples. The numbers above are from the final prompts on both sets; the pre-tuning baseline is in
+[`backend/evals/results/baseline.md`](backend/evals/results/baseline.md).
 <!-- EVAL_RESULTS_END -->
 
 ## Performance notes (local model)
@@ -409,7 +420,7 @@ varied between runs with macOS background load. The golden-eval row comes from t
 | First request with a cold model and no warm-up | About 110 s |
 | Warm, typical (end to end) | Generate 7-13 s, follow-up 6-16 s, explain 7-10 s, schema answers 7-13 s, clarification 5-8 s, refusals 2-6 s, guard rejections instant |
 | Warm, long outputs (end to end) | Optimize 23-35 s, debug 16-28 s, three-table Top-N 16-24 s |
-| Final golden eval (44 LLM-backed turns, warm) | 16.1 s per turn on average (p50 15.9 s, p90 26.1 s); slowest turn 37.5 s (a three-table revenue question) |
+| Final golden eval (44 LLM-backed turns, warm) | 12.7 s per turn on average (p50 11.3 s, p90 23.4 s; intent 3.9 s, SQL 7.6 s, explanation 2.8 s); slowest turn 29.8 s |
 | Deterministic tools | About 1 ms or less each (validate 1.2 ms, analyze 0.4 ms, cost 0.7 ms, execute 0.7 ms, retrieve 0.1 ms) |
 | Backend memory | About 105 MB RSS |
 
@@ -486,8 +497,8 @@ What makes it fast enough:
    executed. They are only made for tables with at least 100 rows.
 9. **Models.** Local development uses `qwen3.5:9b` on Ollama (free, offline, thinking off). The hosted
    deployment is configured for Groq's free tier (`openai/gpt-oss-120b` for SQL, `openai/gpt-oss-20b` for intent
-   and explanations, `qwen/qwen3.8-27b` as fallback). Model ids are configuration, not code. The evaluation
-   numbers above are for the local model; the hosted models have not been evaluated with the golden set.
+   and explanations, `qwen/qwen3.8-27b` as fallback). Model ids are configuration, not code. Both the local and the hosted
+   models were evaluated on the golden set and the dev split (see the evaluation report).
 10. **Memory.** Conversation memory is in-process (LangGraph `InMemorySaver`, one worker). The browser keeps the
     conversations and re-sends the last 10 history items, so threads are rebuilt after a restart.
 11. **Users.** A single-tenant demo without authentication. Conversation ids are random UUIDs created by the

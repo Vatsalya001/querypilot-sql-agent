@@ -37,6 +37,12 @@ backend/evals/results/ollama/dev/*
 backend/evals/results/groq/dev/*
 !backend/evals/results/ollama/dev/final.*
 !backend/evals/results/groq/dev/final.*
+!backend/evals/results/groq/rerun/
+backend/evals/results/groq/rerun/*
+!backend/evals/results/groq/rerun/final.*
+!backend/evals/results/groq/dev/rerun/
+backend/evals/results/groq/dev/rerun/*
+!backend/evals/results/groq/dev/rerun/final.*
 
 # --- Node / frontend ---
 node_modules/

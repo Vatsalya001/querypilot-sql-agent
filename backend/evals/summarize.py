@@ -38,6 +38,10 @@ RUNS: tuple[Run, ...] = (
     Run("groq", "Hosted · Groq `openai/gpt-oss-120b`", "golden", RESULTS_DIR / "groq" / "final.json"),
     Run("ollama-dev", "Local · Ollama `qwen3.5:9b`", "dev", RESULTS_DIR / "ollama" / "dev" / "final.json"),
     Run("groq-dev", "Hosted · Groq `openai/gpt-oss-120b`", "dev", RESULTS_DIR / "groq" / "dev" / "final.json"),
+    Run("groq-rerun", "Hosted · Groq, re-run of rate-limited cases", "golden subset",
+        RESULTS_DIR / "groq" / "rerun" / "final.json"),
+    Run("groq-dev-rerun", "Hosted · Groq, re-run of rate-limited cases", "dev subset",
+        RESULTS_DIR / "groq" / "dev" / "rerun" / "final.json"),
 )
 BASELINE = RESULTS_DIR / "baseline.json"
 CATEGORIES = ("generation", "follow_up", "optimize", "debug", "guardrail")
@@ -138,7 +142,9 @@ def build_report(runs: list[tuple[Run, dict[str, Any]]], baseline: dict[str, Any
         "API's `x-ratelimit-*` headers during the run). The eval sends requests back to back, so the hosted "
         "latency above mostly measures that throttle; a single interactive question typically completes in a "
         "few seconds (the first cases of each hosted run took about 2-5 s). Rate-limited calls wait and retry, "
-        "then fall back to `qwen/qwen3.8-27b`; they are not counted as failures unless the final answer is wrong.",
+        "then fall back to `qwen/qwen3.8-27b`. When both models are exhausted the agent returns a `rate_limited` error, and the "
+        "eval counts it as a failure. The rows marked *re-run of rate-limited cases* repeat exactly those cases one at a "
+        "time after the per-minute budget reset; they are reported separately rather than merged into the headline numbers.",
         "",
         "## By category",
         "",
