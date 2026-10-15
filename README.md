@@ -5,7 +5,7 @@ optimization advice and a cost estimate.** A 16-node LangGraph agent wraps the l
 guardrails. It runs fully offline on a local 9B model and switches to a free hosted model (Groq) through
 environment variables alone, with no code changes.
 
-- **Demo video:** TBD - add after recording (shot list: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md))
+- **Demo video:** shared with the submission email (shot list: [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md))
 - **Live demo:** https://querypilot-wucj.onrender.com (interactive API docs: https://querypilot-wucj.onrender.com/api/docs)
   - No login is needed and the 7-table sample database is built in. Try the prompts under [Try these prompts](#try-these-prompts).
   - Hosted on Render's free tier with Groq's free API (`openai/gpt-oss-120b`): the first load after 15 minutes of
@@ -30,7 +30,7 @@ all seven validation checks passed, executed read-only in 3 ms.*
 | Evaluation report | [`backend/evals/REPORT.md`](backend/evals/REPORT.md) |
 | Assumptions | [Assumptions](#assumptions) |
 | Deployed link | https://querypilot-wucj.onrender.com |
-| Demo video | See the link at the top of this README |
+| Demo video | Shared with the submission email; shot list in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) |
 
 ## Contents
 

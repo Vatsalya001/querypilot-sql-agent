@@ -57,5 +57,5 @@ Total: about 4.5 minutes. If you run long, drop the "Ambiguity and missing data"
 
 ## After recording
 
-1. Upload the video (YouTube unlisted or Loom) and paste the link into the README's **Demo video** line.
-2. Paste the public URL into the README's **Live demo** line once the Render deploy is live.
+1. Trim the start and end, set sharing to "anyone with the link", and check that the link plays in an incognito window.
+2. Share the link in the submission email. The video is not linked from the repository.
